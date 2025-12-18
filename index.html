@@ -46,7 +46,21 @@ onpointermove = e => {
     mouse.x = e.clientX
     mouse.y = e.clientY
     mouse.moved = true
+
+    if (keydown.f || mouse_held(2)) {
+        cam.x -= e.movementX / cam.s
+        cam.y -= e.movementY / cam.s
+    }
 }
+onwheel = e => {
+    let _s = cam.s
+    cam.s *= exp(-e.deltaY / 1000)
+    let f = 1 / _s - 1 / cam.s
+    let [w, h] = [innerWidth, innerHeight]
+    cam.x += (mouse.x - w / 2) * f
+    cam.y += (mouse.y - h / 2) * f
+}
+oncontextmenu = e => e.preventDefault()
 onpointerdown = e => {
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
@@ -90,7 +104,7 @@ let rng = (a, b) => {
 let canvas = document.querySelector("canvas")
 let ctx = canvas.getContext("2d")
 
-let arcs
+let cam
 
 let new_vert = v => [
     v[0] + rng(-30, 30),
@@ -98,12 +112,7 @@ let new_vert = v => [
 ]
 
 let init = () => {
-    arcs = new Map()
-    let v = [innerWidth / 4, innerHeight / 6]
-    arcs.set(v, new Map())
-    arcs.get(v).set(v, 1)
-    let v2 = new_vert(v)
-    arcs.get(v).set(v2, 2)
+    cam = { x: 0, y: 0, s: 1 }
 }
 
 onload = () => {
@@ -127,91 +136,47 @@ let circle = (x, y, r, fillStyle = "SteelBlue") => {
     ctx.fill()
 }
 
-let arc = (xy1, xy2, label) => {
-    ctx.strokeStyle = "#ddd"
-    ctx.fillStyle = "#ddd"
-    ctx.font = "16px sans-serif"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-
-    ctx.beginPath()
-    ctx.moveTo(...xy1)
-    let a = atan2(xy2[1] - xy1[1], xy2[0] - xy1[0])
-    let d = 8
-    let c1 = [
-        xy1[0] + cos(a - pi / 2) * d,
-        xy1[1] + sin(a - pi / 2) * d,
-    ]
-    let c2 = [
-        xy2[0] + cos(a - pi / 2) * d,
-        xy2[1] + sin(a - pi / 2) * d,
-    ]
-    let cd = [
-        c2[0] - c1[0], c2[1] - c1[1]
-    ]
-    c1 = [c1[0] + cd[0] * 0.2, c1[1] + cd[1] * 0.2]
-    c2 = [c2[0] - cd[0] * 0.2, c2[1] - cd[1] * 0.2]
-    ctx.bezierCurveTo(...c1, ...c2, ...xy2)
-    ctx.stroke()
-
-    let midx = (xy1[0] + xy2[0]) / 2
-    let midy = (xy1[1] + xy2[1]) / 2
-    midx += cos(a - pi / 2) * (d + 8)
-    midy += sin(a - pi / 2) * (d + 8)
-    ctx.fillText(label, midx, midy)
-}
-
-follow_mouse = (xy, dt) => {
-    if (!mouse.moved) return
-    let t = 1 - exp(-16 * dt)
-    xy.splice(0, 2,
-        lerp(xy[0], mouse.x, t),
-        lerp(xy[1], mouse.y, t),
-    )
-}
-
 let update = dt => {
-    if (keydown.d)
-    follow_mouse(arcs.keys().next().value, dt)
 }
 
 let draw = () => {
     let [w, h] = [innerWidth, innerHeight]
     ctx.clearRect(0, 0, w, h)
 
+    let _mat = ctx.getTransform()
+    ctx.translate(w / 2, h / 2)
+    ctx.scale(cam.s, cam.s)
+    ctx.translate(-cam.x, -cam.y)
+
     ctx.lineWidth = 100
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     ctx.strokeStyle = "#4d3b34"
     ctx.beginPath()
-    ctx.moveTo(w / 2 - 500, h / 2 - 200)
-    ctx.lineTo(w / 2 - 100, h / 2 - 200)
-    ctx.moveTo(w / 2 - 60, h / 2)
-    ctx.lineTo(w / 2 + 60, h / 2)
-    ctx.moveTo(w / 2 + 100, h / 2 - 200)
-    ctx.lineTo(w / 2 + 500, h / 2 - 200)
+    ctx.moveTo(-500, -200)
+    ctx.lineTo(-100, -200)
+    ctx.moveTo(-60, 0)
+    ctx.lineTo(60, 0)
+    ctx.moveTo(100, -200)
+    ctx.lineTo(500, -200)
     ctx.stroke()
     ctx.strokeStyle = "#47352f"
     ctx.beginPath()
-    ctx.moveTo(w / 2 - 500, h / 2 - 200)
-    ctx.lineTo(w / 2 - 300, h / 2 + 200)
-    ctx.lineTo(w / 2 - 100, h / 2 - 200)
-    ctx.moveTo(w / 2 + 100, h / 2 - 200)
-    ctx.lineTo(w / 2 + 300, h / 2 + 200)
-    ctx.lineTo(w / 2 + 500, h / 2 - 200)
+    ctx.moveTo(-500, -200)
+    ctx.lineTo(-300, 200)
+    ctx.lineTo(-100, -200)
+    ctx.moveTo(100, -200)
+    ctx.lineTo(300, 200)
+    ctx.lineTo(500, -200)
     ctx.stroke()
 
-    circle(w / 2 - 60, h / 2, 25, "#122")
-    circle(w / 2, h / 2, 25, "#688")
-    circle(w / 2 + 60, h / 2, 25, "#bcd")
+    circle(-60, 0, 25, "#122")
+    circle(0, 0, 25, "#688")
+    circle(60, 0, 25, "#bcd")
 
     ctx.lineWidth = 2
-    for (let xy of arcs.keys()) {
-        circle(...xy, 20)
 
-        for (let [xy2, label] of arcs.get(xy).entries())
-        arc(xy, xy2, label)
-    }
+    ctx.setTransform(_mat)
 }
 
 let now = () => performance.now()
