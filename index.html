@@ -22,11 +22,18 @@
 <body>
 <canvas ondragstart="return false"></canvas>
 <script>
-let { min, max, exp, sin, cos, atan2 } = Math
+let { min, max, abs, sign, sqrt, exp, sin, cos, atan2 } = Math
 let pi = Math.PI
 
-let lerp = (a, b, t) => a * (1 - t) + b * t
 let clamp = (x, a, b) => min(max(x, a), b)
+let dist = (x1, y1, x2, y2) => sqrt((x2 - x1)**2 + (y2 - y1)**2)
+let lerp = (a, b, t) => a * (1 - t) + b * t
+let fri_lerp = (a, b, t, dt) => {
+    let alpha = 1 - exp(-60 * t * dt)
+    return lerp(a, b, alpha)
+}
+
+let cursor = v => document.body.style.cursor = v
 
 let mouse = {
     x: 0, y: 0,
@@ -69,6 +76,8 @@ onpointerdown = e => {
     mouse.x = e.clientX
     mouse.y = e.clientY
     mouse.moved = true
+
+    for (let vv of [...vvs]) vv.mousedown()
 }
 onpointerup = e => {
     if (!e.isPrimary) return
@@ -86,6 +95,7 @@ onkeydown = e => {
     switch (key) {
         case "r": init(); break
     }
+    for (let vv of [...vvs]) vv.keydown(key)
 }
 onkeyup = e => {
     let key = e.key.toLowerCase()
@@ -100,19 +110,119 @@ let rng = (a, b) => {
     if (b == undefined) return v * a
     return a + v * (b - a)
 }
+let rngc = (r) => {
+    let a = rng(2 * pi)
+    return [r * cos(a), r * sin(a)]
+}
 
 let canvas = document.querySelector("canvas")
 let ctx = canvas.getContext("2d")
 
-let cam
+let cam, vvs
 
-let new_vert = v => [
-    v[0] + rng(-30, 30),
-    v[1] + rng(-30, 30),
-]
+class VV {
+    a = 0; s = 1; alive = true
+    constructor(x, y) {
+        let vv = this
+        vv.x = x,  vv.y = y
+        let [xv, yv] = rngc(300)
+        vv.xv = xv,  vv.yv = yv
+        vv.av = rng(0.2, 0.8) * sign(rng(-1, 1))
+    }
+
+    update(dt) {
+        let vv = this
+        vv.xv = fri_lerp(vv.xv, 0, 0.15, dt)
+        vv.yv = fri_lerp(vv.yv, 0, 0.15, dt)
+        vv.av = fri_lerp(vv.av, 0, 0.15, dt)
+        vv.x += vv.xv * dt
+        vv.y += vv.yv * dt
+        vv.a += vv.av * dt
+
+        if (vv.alive)
+        vv.ts = 0.75 + 1 / (3 + exp(sqrt(vv.xv**2 + vv.yv**2) / 200))
+        else if (vv.s < 0.01)
+        vvs.splice(vvs.indexOf(this), 1)
+
+        vv.s = fri_lerp(vv.s, vv.ts, 0.15, dt)
+    }
+
+    mousedown() {
+        let vv = this
+        _mats.push(ctx.getTransform())
+        ctx.translate(vv.x, vv.y)
+        ctx.rotate(vv.a)
+        ctx.scale(vv.s, vv.s)
+
+        let m = ctx.getTransform().inverse()
+        let {x, y} = m.transformPoint(mouse)
+
+        if (dist(x, y, -60, 0) < 25) {
+            vv.alive = false
+            vv.ts = 0
+        } else if (dist(x, y, 60, 0) < 25) {
+            let vv2 = new VV(this.x, this.y)
+            vvs.push(vv2)
+            vv2.yv = rng(6000, 10000)
+            vv2.xv = rng(-2000, 2000)
+        }
+
+        ctx.setTransform(_mats.pop())
+    }
+
+    keydown(key) {
+        if (key != "d") return
+        this.mousedown()
+    }
+
+    draw() {
+        let vv = this
+        _mats.push(ctx.getTransform())
+        ctx.translate(vv.x, vv.y)
+        ctx.rotate(vv.a)
+        ctx.scale(vv.s, vv.s)
+
+        ctx.strokeStyle = "#4d3b34"
+        ctx.beginPath()
+        ctx.moveTo(-500, -200)
+        ctx.lineTo(-100, -200)
+        ctx.moveTo(-60, 0)
+        ctx.lineTo(60, 0)
+        ctx.moveTo(100, -200)
+        ctx.lineTo(500, -200)
+        ctx.stroke()
+        ctx.strokeStyle = "#47352f"
+        ctx.beginPath()
+        ctx.moveTo(-500, -200)
+        ctx.lineTo(-300, 200)
+        ctx.lineTo(-100, -200)
+        ctx.moveTo(100, -200)
+        ctx.lineTo(300, 200)
+        ctx.lineTo(500, -200)
+        ctx.stroke()
+
+        let m = ctx.getTransform().inverse()
+        let {x, y} = m.transformPoint(mouse)
+
+        let fill = "#122"
+        if (dist(x, y, -60, 0) < 25)
+        { cursor("pointer"),  fill = "#688" }
+        circle(-60, 0, 25, fill)
+
+        circle(0, 0, 25, "#688")
+
+        fill = "#bcd"
+        if (dist(x, y, 60, 0) < 25)
+        { cursor("pointer"),  fill = "#688" }
+        circle(60, 0, 25, fill)
+
+        ctx.setTransform(_mats.pop())
+    }
+}
 
 let init = () => {
     cam = { x: 0, y: 0, s: 1 }
+    vvs = [new VV(0, 0)]
 }
 
 onload = () => {
@@ -137,46 +247,27 @@ let circle = (x, y, r, fillStyle = "SteelBlue") => {
 }
 
 let update = dt => {
+    for (let vv of [...vvs]) vv.update(dt)
 }
 
+let _mats = []
 let draw = () => {
+    ctx.resetTransform()
     let [w, h] = [innerWidth, innerHeight]
     ctx.clearRect(0, 0, w, h)
+    cursor("default")
 
-    let _mat = ctx.getTransform()
     ctx.translate(w / 2, h / 2)
     ctx.scale(cam.s, cam.s)
     ctx.translate(-cam.x, -cam.y)
+    _mats.push(ctx.getTransform())
 
     ctx.lineWidth = 100
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
-    ctx.strokeStyle = "#4d3b34"
-    ctx.beginPath()
-    ctx.moveTo(-500, -200)
-    ctx.lineTo(-100, -200)
-    ctx.moveTo(-60, 0)
-    ctx.lineTo(60, 0)
-    ctx.moveTo(100, -200)
-    ctx.lineTo(500, -200)
-    ctx.stroke()
-    ctx.strokeStyle = "#47352f"
-    ctx.beginPath()
-    ctx.moveTo(-500, -200)
-    ctx.lineTo(-300, 200)
-    ctx.lineTo(-100, -200)
-    ctx.moveTo(100, -200)
-    ctx.lineTo(300, 200)
-    ctx.lineTo(500, -200)
-    ctx.stroke()
+    for (let vv of vvs) vv.draw()
 
-    circle(-60, 0, 25, "#122")
-    circle(0, 0, 25, "#688")
-    circle(60, 0, 25, "#bcd")
-
-    ctx.lineWidth = 2
-
-    ctx.setTransform(_mat)
+    ctx.setTransform(_mats.pop())
 }
 
 let now = () => performance.now()
