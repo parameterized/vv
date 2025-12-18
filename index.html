@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>vv</title>
+<link rel="shortcut icon" href='data:image/svg+xml,
+    <svg xmlns=%22http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <text y="1.1em" font-size="75">🌱️</text></svg>'>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<style>
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #523f38;
+    }
+    canvas { position: absolute; }
+</style>
+</head>
+
+<body>
+<canvas ondragstart="return false"></canvas>
+<script>
+let { min, max, exp, sin, cos, atan2 } = Math
+let pi = Math.PI
+
+let lerp = (a, b, t) => a * (1 - t) + b * t
+let clamp = (x, a, b) => min(max(x, a), b)
+
+let mouse = {
+    x: 0, y: 0,
+    held: { 0: false, 1: false, 2: false },
+    moved: false,
+}
+mouse_held = btn => {
+    if (btn == undefined) {
+        for (let b in mouse.held)
+        if (mouse.held[b]) return true
+        return false
+    }
+    return btn in mouse.held && mouse.held[btn]
+}
+onpointermove = e => {
+    if (!e.isPrimary) return
+    mouse.x = e.clientX
+    mouse.y = e.clientY
+    mouse.moved = true
+}
+onpointerdown = e => {
+    if (!e.isPrimary) return
+    if (e.button in mouse.held) {
+        mouse.held[e.button] = true
+    }
+    mouse.x = e.clientX
+    mouse.y = e.clientY
+    mouse.moved = true
+}
+onpointerup = e => {
+    if (!e.isPrimary) return
+    if (e.button in mouse.held) {
+        mouse.held[e.button] = false
+    }
+}
+
+let keydown = {}
+onkeydown = e => {
+    let key = e.key.toLowerCase()
+    if (e.repeat || e.ctrlKey) return
+    keydown[key] = true
+
+    switch (key) {
+        case "r": init(); break
+    }
+}
+onkeyup = e => {
+    let key = e.key.toLowerCase()
+    keydown[key] = false
+}
+
+let rng = (a, b) => {
+    let arr = new Uint32Array(1)
+    crypto.getRandomValues(arr)
+    let v = arr[0] / 0xffffffff
+    if (a == undefined) return v
+    if (b == undefined) return v * a
+    return a + v * (b - a)
+}
+
+let canvas = document.querySelector("canvas")
+let ctx = canvas.getContext("2d")
+
+let arcs
+
+let new_vert = v => [
+    v[0] + rng(-30, 30),
+    v[1] + rng(-30, 30),
+]
+
+let init = () => {
+    arcs = new Map()
+    let v = [innerWidth / 4, innerHeight / 6]
+    arcs.set(v, new Map())
+    arcs.get(v).set(v, 1)
+    let v2 = new_vert(v)
+    arcs.get(v).set(v2, 2)
+}
+
+onload = () => {
+    init()
+    loop()
+}
+
+onresize = () => {
+    canvas.width = innerWidth
+    canvas.height = innerHeight
+}
+onresize()
+
+let circle = (x, y, r, fillStyle = "SteelBlue") => {
+    ctx.fillStyle = fillStyle
+    ctx.beginPath()
+    ctx.ellipse(
+        x, y, r, r,
+        0, 0, pi * 2,
+    )
+    ctx.fill()
+}
+
+let arc = (xy1, xy2, label) => {
+    ctx.strokeStyle = "#ddd"
+    ctx.fillStyle = "#ddd"
+    ctx.font = "16px sans-serif"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+
+    ctx.beginPath()
+    ctx.moveTo(...xy1)
+    let a = atan2(xy2[1] - xy1[1], xy2[0] - xy1[0])
+    let d = 8
+    let c1 = [
+        xy1[0] + cos(a - pi / 2) * d,
+        xy1[1] + sin(a - pi / 2) * d,
+    ]
+    let c2 = [
+        xy2[0] + cos(a - pi / 2) * d,
+        xy2[1] + sin(a - pi / 2) * d,
+    ]
+    let cd = [
+        c2[0] - c1[0], c2[1] - c1[1]
+    ]
+    c1 = [c1[0] + cd[0] * 0.2, c1[1] + cd[1] * 0.2]
+    c2 = [c2[0] - cd[0] * 0.2, c2[1] - cd[1] * 0.2]
+    ctx.bezierCurveTo(...c1, ...c2, ...xy2)
+    ctx.stroke()
+
+    let midx = (xy1[0] + xy2[0]) / 2
+    let midy = (xy1[1] + xy2[1]) / 2
+    midx += cos(a - pi / 2) * (d + 8)
+    midy += sin(a - pi / 2) * (d + 8)
+    ctx.fillText(label, midx, midy)
+}
+
+follow_mouse = (xy, dt) => {
+    if (!mouse.moved) return
+    let t = 1 - exp(-16 * dt)
+    xy.splice(0, 2,
+        lerp(xy[0], mouse.x, t),
+        lerp(xy[1], mouse.y, t),
+    )
+}
+
+let update = dt => {
+    if (keydown.d)
+    follow_mouse(arcs.keys().next().value, dt)
+}
+
+let draw = () => {
+    let [w, h] = [innerWidth, innerHeight]
+    ctx.clearRect(0, 0, w, h)
+
+    ctx.lineWidth = 100
+    ctx.lineCap = "round"
+    ctx.lineJoin = "round"
+    ctx.strokeStyle = "#4d3b34"
+    ctx.beginPath()
+    ctx.moveTo(w / 2 - 500, h / 2 - 200)
+    ctx.lineTo(w / 2 - 100, h / 2 - 200)
+    ctx.moveTo(w / 2 - 60, h / 2)
+    ctx.lineTo(w / 2 + 60, h / 2)
+    ctx.moveTo(w / 2 + 100, h / 2 - 200)
+    ctx.lineTo(w / 2 + 500, h / 2 - 200)
+    ctx.stroke()
+    ctx.strokeStyle = "#47352f"
+    ctx.beginPath()
+    ctx.moveTo(w / 2 - 500, h / 2 - 200)
+    ctx.lineTo(w / 2 - 300, h / 2 + 200)
+    ctx.lineTo(w / 2 - 100, h / 2 - 200)
+    ctx.moveTo(w / 2 + 100, h / 2 - 200)
+    ctx.lineTo(w / 2 + 300, h / 2 + 200)
+    ctx.lineTo(w / 2 + 500, h / 2 - 200)
+    ctx.stroke()
+
+    circle(w / 2 - 60, h / 2, 25, "#122")
+    circle(w / 2, h / 2, 25, "#688")
+    circle(w / 2 + 60, h / 2, 25, "#bcd")
+
+    ctx.lineWidth = 2
+    for (let xy of arcs.keys()) {
+        circle(...xy, 20)
+
+        for (let [xy2, label] of arcs.get(xy).entries())
+        arc(xy, xy2, label)
+    }
+}
+
+let now = () => performance.now()
+let _time = now()
+
+let loop = () => {
+    let dt = min((now() - _time) / 1000, 0.1)
+    _time = now()
+
+    update(dt)
+    draw()
+
+    requestAnimationFrame(loop)
+}
+</script>
+</body>
+</html>
