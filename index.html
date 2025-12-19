@@ -22,7 +22,7 @@
 <body>
 <canvas ondragstart="return false"></canvas>
 <script>
-let { min, max, abs, sign, sqrt, exp, sin, cos, atan2 } = Math
+let { min, max, abs, sign, sqrt, exp, sin, cos, tan, atan2 } = Math
 let pi = Math.PI
 
 let clamp = (x, a, b) => min(max(x, a), b)
@@ -31,6 +31,22 @@ let lerp = (a, b, t) => a * (1 - t) + b * t
 let fri_lerp = (a, b, t, dt) => {
     let alpha = 1 - exp(-60 * t * dt)
     return lerp(a, b, alpha)
+}
+
+let ease = {
+    outQuad: t => t * (2 - t),
+    outBounce: t => {
+        let n1 = 7.5625,  d1 = 2.75
+        if (t < 1 / d1) {
+            return n1 * t * t;
+        } else if (t < 2 / d1) {
+            return n1 * (t -= 1.5 / d1) * t + 0.75;
+        } else if (t < 2.5 / d1) {
+            return n1 * (t -= 2.25 / d1) * t + 0.9375;
+        } else {
+            return n1 * (t -= 2.625 / d1) * t + 0.984375;
+        }
+    }
 }
 
 let cursor = v => document.body.style.cursor = v
@@ -120,8 +136,34 @@ let ctx = canvas.getContext("2d")
 
 let cam, vvs
 
+let line = (x1, y1, x2, y2, strokeStyle) => {
+    ctx.strokeStyle = strokeStyle || ctx.strokeStyle
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    ctx.stroke()
+}
+
+let circle = (x, y, r, fillStyle = "SteelBlue") => {
+    ctx.fillStyle = fillStyle
+    ctx.beginPath()
+    ctx.ellipse(
+        x, y, r, r,
+        0, 0, pi * 2,
+    )
+    ctx.fill()
+}
+
+let _mats = []
+let push = () => _mats.push(ctx.getTransform())
+let pop = () => ctx.setTransform(_mats.pop())
+
 class VV {
-    a = 0; s = 1; alive = true
+    a = 0; s = 1
+    alive = true
+    open = true
+    open_t = 0
+
     constructor(x, y) {
         let vv = this
         vv.x = x,  vv.y = y
@@ -145,11 +187,16 @@ class VV {
         vvs.splice(vvs.indexOf(this), 1)
 
         vv.s = fri_lerp(vv.s, vv.ts, 0.15, dt)
+
+        vv.open_t = clamp(
+            vv.open_t + (vv.open ? 1 : -1) * 2 * dt,
+            0, 1
+        )
     }
 
     mousedown() {
         let vv = this
-        _mats.push(ctx.getTransform())
+        push()
         ctx.translate(vv.x, vv.y)
         ctx.rotate(vv.a)
         ctx.scale(vv.s, vv.s)
@@ -157,17 +204,19 @@ class VV {
         let m = ctx.getTransform().inverse()
         let {x, y} = m.transformPoint(mouse)
 
-        if (dist(x, y, -60, 0) < 25) {
+        if (dist(x, y, -65, 0) < 25) {
+            vv.open = false
             vv.alive = false
             vv.ts = 0
-        } else if (dist(x, y, 60, 0) < 25) {
+        } else if (dist(x, y, 0, 0) < 25) {
+            vv.open = !vv.open
+        } else if (dist(x, y, 65, 0) < 25) {
             let vv2 = new VV(this.x, this.y)
             vvs.push(vv2)
             vv2.yv = rng(6000, 10000)
             vv2.xv = rng(-2000, 2000)
         }
-
-        ctx.setTransform(_mats.pop())
+        pop()
     }
 
     keydown(key) {
@@ -177,46 +226,56 @@ class VV {
 
     draw() {
         let vv = this
-        _mats.push(ctx.getTransform())
+        push()
         ctx.translate(vv.x, vv.y)
         ctx.rotate(vv.a)
         ctx.scale(vv.s, vv.s)
 
-        ctx.strokeStyle = "#4d3b34"
-        ctx.beginPath()
-        ctx.moveTo(-500, -200)
-        ctx.lineTo(-100, -200)
-        ctx.moveTo(-60, 0)
-        ctx.lineTo(60, 0)
-        ctx.moveTo(100, -200)
-        ctx.lineTo(500, -200)
-        ctx.stroke()
-        ctx.strokeStyle = "#47352f"
-        ctx.beginPath()
-        ctx.moveTo(-500, -200)
-        ctx.lineTo(-300, 200)
-        ctx.lineTo(-100, -200)
-        ctx.moveTo(100, -200)
-        ctx.lineTo(300, 200)
-        ctx.lineTo(500, -200)
-        ctx.stroke()
+        let slide_t = (vv.open
+            ? ease.outBounce(vv.open_t)
+            : 1 - ease.outBounce(1 - vv.open_t)
+        )
+        let roll_t = 1 - slide_t
+        let h = tan(pi / 3) * 200
+        let mid = tan(pi / 6) * 200
+
+        push()
+        ctx.translate(300 * slide_t, 0)
+        ctx.rotate(pi / 6 * roll_t)
+        ctx.translate(0, -mid)
+        line(-200, 0, 200, 0, "#4d3b34")
+        line(-200, 0, 0, h, "#47352f")
+        line(0, h, 200, 0)
+        pop()
+
+        push()
+        ctx.translate(-300 * slide_t, 0)
+        ctx.rotate(-pi / 6 * roll_t)
+        ctx.translate(0, -mid)
+        line(-200, 0, 200, 0, "#4d3b34")
+        line(-200, 0, 0, h, "#47352f")
+        line(0, h, 200, 0)
+        pop()
 
         let m = ctx.getTransform().inverse()
         let {x, y} = m.transformPoint(mouse)
 
         let fill = "#122"
-        if (dist(x, y, -60, 0) < 25)
-        { cursor("pointer"),  fill = "#688" }
-        circle(-60, 0, 25, fill)
+        if (dist(x, y, -65, 0) < 25)
+        { cursor("pointer"),  fill = "#577" }
+        circle(-65, 0, 25, fill)
 
-        circle(0, 0, 25, "#688")
+        fill = "#688"
+        if (dist(x, y, 0, 0) < 25)
+        { cursor("pointer"),  fill = "#577" }
+        circle(0, 0, 25, fill)
 
         fill = "#bcd"
-        if (dist(x, y, 60, 0) < 25)
-        { cursor("pointer"),  fill = "#688" }
-        circle(60, 0, 25, fill)
+        if (dist(x, y, 65, 0) < 25)
+        { cursor("pointer"),  fill = "#577" }
+        circle(65, 0, 25, fill)
 
-        ctx.setTransform(_mats.pop())
+        pop()
     }
 }
 
@@ -236,21 +295,10 @@ onresize = () => {
 }
 onresize()
 
-let circle = (x, y, r, fillStyle = "SteelBlue") => {
-    ctx.fillStyle = fillStyle
-    ctx.beginPath()
-    ctx.ellipse(
-        x, y, r, r,
-        0, 0, pi * 2,
-    )
-    ctx.fill()
-}
-
 let update = dt => {
     for (let vv of [...vvs]) vv.update(dt)
 }
 
-let _mats = []
 let draw = () => {
     ctx.resetTransform()
     let [w, h] = [innerWidth, innerHeight]
@@ -260,14 +308,14 @@ let draw = () => {
     ctx.translate(w / 2, h / 2)
     ctx.scale(cam.s, cam.s)
     ctx.translate(-cam.x, -cam.y)
-    _mats.push(ctx.getTransform())
+    push()
 
     ctx.lineWidth = 100
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     for (let vv of vvs) vv.draw()
 
-    ctx.setTransform(_mats.pop())
+    pop()
 }
 
 let now = () => performance.now()
