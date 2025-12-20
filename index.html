@@ -14,8 +14,15 @@
         margin: 0;
         overflow: hidden;
         background: #523f38;
+        touch-action: pinch-zoom;
     }
-    canvas { position: absolute; }
+    canvas {
+        position: absolute;
+        display: block;
+        width: 100dvw;
+        height: 100dvh;
+        -webkit-tap-highlight-color: transparent;
+    }
 </style>
 </head>
 
@@ -63,8 +70,8 @@ mouse_held = btn => {
 }
 onpointermove = e => {
     if (!e.isPrimary) return
-    mouse.x = e.clientX
-    mouse.y = e.clientY
+    mouse.x = e.clientX * devicePixelRatio
+    mouse.y = e.clientY * devicePixelRatio
     mouse.moved = true
 
     if (keydown.f || mouse_held(2)) {
@@ -76,7 +83,7 @@ onwheel = e => {
     let _s = cam.s
     cam.s *= exp(-e.deltaY / 1000)
     let f = 1 / _s - 1 / cam.s
-    let [w, h] = [innerWidth, innerHeight]
+    let [w, h] = [canvas.width, canvas.height]
     cam.x += (mouse.x - w / 2) * f
     cam.y += (mouse.y - h / 2) * f
 }
@@ -86,8 +93,8 @@ onpointerdown = e => {
     if (e.button in mouse.held) {
         mouse.held[e.button] = true
     }
-    mouse.x = e.clientX
-    mouse.y = e.clientY
+    mouse.x = e.clientX * devicePixelRatio
+    mouse.y = e.clientY * devicePixelRatio
     mouse.moved = true
 
     for (let vv of [...vvs])
@@ -336,7 +343,7 @@ class VV {
 }
 
 let init = () => {
-    cam = { x: 0, y: 0, s: innerWidth / 1600 }
+    cam = { x: 0, y: 0, s: canvas.width / 1600 }
     vvs = [new VV()]
     atoms = []
     bonds = new Map()
@@ -348,9 +355,10 @@ onload = () => {
 }
 
 onresize = () => {
-    if (cam) cam.s *= innerWidth / canvas.width
-    canvas.width = innerWidth
-    canvas.height = innerHeight
+    let dpr = devicePixelRatio
+    let [w, h] = [innerWidth * dpr, innerHeight * dpr]
+    if (cam) cam.s *= w / canvas.width
+    ;[canvas.width, canvas.height] = [w, h]
 }
 onresize()
 
@@ -367,7 +375,7 @@ let update = dt => {
 
 let draw = () => {
     ctx.resetTransform()
-    let [w, h] = [innerWidth, innerHeight]
+    let [w, h] = [canvas.width, canvas.height]
     ctx.clearRect(0, 0, w, h)
     cursor("default")
 
