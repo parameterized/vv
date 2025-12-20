@@ -134,8 +134,6 @@ let rngc = (r) => {
 let canvas = document.querySelector("canvas")
 let ctx = canvas.getContext("2d")
 
-let cam, vvs
-
 let line = (x1, y1, x2, y2, strokeStyle) => {
     ctx.strokeStyle = strokeStyle || ctx.strokeStyle
     ctx.beginPath()
@@ -154,6 +152,7 @@ let circle = (x, y, r, fillStyle = "SteelBlue") => {
     ctx.fill()
 }
 
+let cam, vvs
 let _mats = []
 let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
@@ -164,7 +163,7 @@ class VV {
     open = true
     open_t = 0
 
-    constructor(x, y) {
+    constructor(x = 0, y = 0) {
         let vv = this
         vv.x = x,  vv.y = y
         let [xv, yv] = rngc(300)
@@ -281,7 +280,7 @@ class VV {
 
 let init = () => {
     cam = { x: 0, y: 0, s: 1 }
-    vvs = [new VV(0, 0)]
+    vvs = [new VV()]
 }
 
 onload = () => {
@@ -296,6 +295,7 @@ onresize = () => {
 onresize()
 
 let update = dt => {
+    if (!vvs.length) vvs = [new VV()]
     for (let vv of [...vvs]) vv.update(dt)
 }
 
