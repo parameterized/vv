@@ -240,7 +240,7 @@ class VV {
 
         push()
         ctx.translate(300 * slide_t, 0)
-        ctx.rotate(pi / 6 * roll_t)
+        ctx.rotate(-pi / 2 * roll_t)
         ctx.translate(0, -mid)
         line(-200, 0, 200, 0, "#4d3b34")
         line(-200, 0, 0, h, "#47352f")
@@ -249,7 +249,7 @@ class VV {
 
         push()
         ctx.translate(-300 * slide_t, 0)
-        ctx.rotate(-pi / 6 * roll_t)
+        ctx.rotate(pi / 2 * roll_t)
         ctx.translate(0, -mid)
         line(-200, 0, 200, 0, "#4d3b34")
         line(-200, 0, 0, h, "#47352f")
