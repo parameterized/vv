@@ -37,15 +37,12 @@ let ease = {
     outQuad: t => t * (2 - t),
     outBounce: t => {
         let n1 = 7.5625,  d1 = 2.75
-        if (t < 1 / d1) {
-            return n1 * t * t;
-        } else if (t < 2 / d1) {
-            return n1 * (t -= 1.5 / d1) * t + 0.75;
-        } else if (t < 2.5 / d1) {
-            return n1 * (t -= 2.25 / d1) * t + 0.9375;
-        } else {
-            return n1 * (t -= 2.625 / d1) * t + 0.984375;
-        }
+        if (t < 1 / d1) return n1 * t * t
+        else if (t < 2 / d1)
+            return n1 * (t -= 1.5 / d1) * t + 0.75
+        else if (t < 2.5 / d1)
+            return n1 * (t -= 2.25 / d1) * t + 0.9375
+        else return n1 * (t -= 2.625 / d1) * t + 0.984375
     }
 }
 
@@ -93,13 +90,23 @@ onpointerdown = e => {
     mouse.y = e.clientY
     mouse.moved = true
 
-    for (let vv of [...vvs]) vv.mousedown()
+    for (let vv of [...vvs])
+    if (e.button == 0) vv.mousedown()
+
+    let m = ctx.getTransform().inverse()
+    let {x, y} = m.transformPoint(mouse)
+
+    for (let a of atoms)
+    if (dist(a.x, a.y, x, y) < 25)
+    held_atom = a
 }
 onpointerup = e => {
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
         mouse.held[e.button] = false
     }
+
+    held_atom = null
 }
 
 let keydown = {}
@@ -108,14 +115,25 @@ onkeydown = e => {
     if (e.repeat || e.ctrlKey) return
     keydown[key] = true
 
+    let m = ctx.getTransform().inverse()
+    let {x, y} = m.transformPoint(mouse)
+
     switch (key) {
         case "r": init(); break
+        case "d": {
+            for (let a of atoms)
+            if (dist(a.x, a.y, x, y) < 25)
+            held_atom = a
+            break
+        }
     }
     for (let vv of [...vvs]) vv.keydown(key)
 }
 onkeyup = e => {
     let key = e.key.toLowerCase()
     keydown[key] = false
+
+    held_atom = null
 }
 
 let rng = (a, b) => {
@@ -142,26 +160,79 @@ let line = (x1, y1, x2, y2, strokeStyle) => {
     ctx.stroke()
 }
 
-let circle = (x, y, r, fillStyle = "SteelBlue") => {
-    ctx.fillStyle = fillStyle
+let circle = (x, y, r, color = "SteelBlue", mode = "fill") => {
+    ctx.lineWidth = 4
+    if (mode == "fill") ctx.fillStyle = color
+    else ctx.strokeStyle = color
     ctx.beginPath()
     ctx.ellipse(
         x, y, r, r,
         0, 0, pi * 2,
     )
-    ctx.fill()
+    if (mode == "fill") ctx.fill()
+    else ctx.stroke()
 }
 
-let cam, vvs
 let _mats = []
 let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
+
+let cam, vvs, atoms, bonds
+let held_atom
+
+let add_atom = fill => {
+    let a = { fill }
+    atoms.push(a)
+    return a
+}
 
 class VV {
     a = 0; s = 1
     alive = true
     open = true
     open_t = 0
+
+    btns = {
+        toggle: {
+            fn: () => this.open = !this.open,
+            x: 0, y: 0, fill: "#688",
+        },
+        rm: {
+            fn: () => {
+                this.open = false,  this.alive = false
+                this.ts = 0
+            },
+            x: -65, y: 0, fill: "#122",
+        },
+        copy: {
+            fn: () => {
+                let vv2 = new VV(this.x, this.y)
+                vvs.push(vv2)
+                vv2.yv = rng(6000, 10000)
+                vv2.xv = rng(-2000, 2000)
+            },
+            x: 65, y: 0, fill: "#bcd",
+        },
+        red: {
+            fn: () => held_atom = add_atom("#a33"),
+            x: cos(-2 * pi / 3) * 65, y: sin(-2 * pi / 3) * 65,
+            fill: "#a33",
+        },
+        green: {
+            fn: () => held_atom = add_atom("#285"),
+            x: cos(-pi / 3) * 65, y: sin(-pi / 3) * 65,
+            fill: "#285",
+        },
+        blue: {
+            fn: () => held_atom = add_atom("#279"),
+            x: cos(2 * pi / 3) * 65, y: sin(2 * pi / 3) * 65,
+            fill: "#279",
+        },
+        none: {
+            fn: () => held_atom = add_atom(),
+            x: cos(pi / 3) * 65, y: sin(pi / 3) * 65,
+        },
+    }
 
     constructor(x = 0, y = 0) {
         let vv = this
@@ -203,18 +274,9 @@ class VV {
         let m = ctx.getTransform().inverse()
         let {x, y} = m.transformPoint(mouse)
 
-        if (dist(x, y, -65, 0) < 25) {
-            vv.open = false
-            vv.alive = false
-            vv.ts = 0
-        } else if (dist(x, y, 0, 0) < 25) {
-            vv.open = !vv.open
-        } else if (dist(x, y, 65, 0) < 25) {
-            let vv2 = new VV(this.x, this.y)
-            vvs.push(vv2)
-            vv2.yv = rng(6000, 10000)
-            vv2.xv = rng(-2000, 2000)
-        }
+        for (let b of Object.values(vv.btns))
+        if (dist(x, y, b.x, b.y) < 25) b.fn()
+
         pop()
     }
 
@@ -238,6 +300,8 @@ class VV {
         let h = tan(pi / 3) * 200
         let mid = tan(pi / 6) * 200
 
+        ctx.lineWidth = 100
+
         push()
         ctx.translate(300 * slide_t, 0)
         ctx.rotate(-pi / 2 * roll_t)
@@ -259,20 +323,13 @@ class VV {
         let m = ctx.getTransform().inverse()
         let {x, y} = m.transformPoint(mouse)
 
-        let fill = "#122"
-        if (dist(x, y, -65, 0) < 25)
-        { cursor("pointer"),  fill = "#577" }
-        circle(-65, 0, 25, fill)
-
-        fill = "#688"
-        if (dist(x, y, 0, 0) < 25)
-        { cursor("pointer"),  fill = "#577" }
-        circle(0, 0, 25, fill)
-
-        fill = "#bcd"
-        if (dist(x, y, 65, 0) < 25)
-        { cursor("pointer"),  fill = "#577" }
-        circle(65, 0, 25, fill)
+        for (let b of Object.values(vv.btns)) {
+            let fill = b.fill
+            if (dist(x, y, b.x, b.y) < 25)
+            { cursor("pointer"),  fill = "#577" }
+            if (fill) circle(b.x, b.y, 25, fill)
+            else circle(b.x, b.y, 25, "#122", "line")
+        }
 
         pop()
     }
@@ -281,6 +338,8 @@ class VV {
 let init = () => {
     cam = { x: 0, y: 0, s: 1 }
     vvs = [new VV()]
+    atoms = []
+    bonds = new Map()
 }
 
 onload = () => {
@@ -297,6 +356,12 @@ onresize()
 let update = dt => {
     if (!vvs.length) vvs = [new VV()]
     for (let vv of [...vvs]) vv.update(dt)
+
+    let m = ctx.getTransform().inverse()
+    let {x, y} = m.transformPoint(mouse)
+
+    let a = held_atom
+    if (a) { a.x = x,  a.y = y }
 }
 
 let draw = () => {
@@ -310,10 +375,20 @@ let draw = () => {
     ctx.translate(-cam.x, -cam.y)
     push()
 
-    ctx.lineWidth = 100
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     for (let vv of vvs) vv.draw()
+
+    let m = ctx.getTransform().inverse()
+    let {x, y} = m.transformPoint(mouse)
+
+    for (let a of atoms) {
+        let fill = a.fill
+        if (dist(a.x, a.y, x, y) < 25)
+        { cursor("pointer"),  fill = "#577" }
+        if (fill) circle(a.x, a.y, 25, fill)
+        else circle(a.x, a.y, 25, "#122", "line")
+    }
 
     pop()
 }
