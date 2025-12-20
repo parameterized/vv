@@ -336,7 +336,7 @@ class VV {
 }
 
 let init = () => {
-    cam = { x: 0, y: 0, s: 1 }
+    cam = { x: 0, y: 0, s: innerWidth / 1600 }
     vvs = [new VV()]
     atoms = []
     bonds = new Map()
@@ -348,6 +348,7 @@ onload = () => {
 }
 
 onresize = () => {
+    if (cam) cam.s *= innerWidth / canvas.width
     canvas.width = innerWidth
     canvas.height = innerHeight
 }
