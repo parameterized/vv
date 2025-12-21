@@ -73,7 +73,7 @@ onwheel = e => {
     let _s = cam.s
     cam.s *= exp(-e.deltaY / 1000)
     let f = 1 / _s - 1 / cam.s
-    let [w, h] = [canvas.width, canvas.height]
+    let w = canvas.width,  h = canvas.height
     cam.x += (mouse.x - w / 2) * f
     cam.y += (mouse.y - h / 2) * f
 }
@@ -84,7 +84,7 @@ let touched = false
 let touch_left = () => touched !== false && !(touched in fingers)
 onpointerdown = e => {
     let dpr = devicePixelRatio
-    let [x, y] = [e.clientX * dpr, e.clientY * dpr]
+    let x = e.clientX * dpr,  y = e.clientY * dpr
 
     if (e.pointerType == "touch") {
         fingers[e.pointerId] = { x, y }
@@ -95,7 +95,7 @@ onpointerdown = e => {
     if (e.button in mouse.held) {
         mouse.held[e.button] = true
     }
-    [mouse.x, mouse.y] = [x, y]
+    mouse.x = x,  mouse.y = y
     mouse.moved = true
 
     for (let vv of [...vvs])
@@ -121,7 +121,7 @@ onpointerup = e => {
 }
 onpointermove = e => {
     let dpr = devicePixelRatio
-    let [x, y] = [e.clientX * dpr, e.clientY * dpr]
+    let x = e.clientX * dpr,  y = e.clientY * dpr
 
     let ids = Object.keys(fingers)
     if (e.pointerId in fingers) {
@@ -131,9 +131,9 @@ onpointermove = e => {
             cam.y -= (y - _y) / cam.s
         } else if (ids.length == 2) {
             let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
-            let [mdx, mdy] = [(x - _x) / 2, (y - _y) / 2]
+            let mdx = (x - _x) / 2,  mdy = (y - _y) / 2
             let md = dist(mdx, mdy)
-            let [tdx, tdy] = [_x - f2.x, _y - f2.y]
+            let tdx = _x - f2.x,  tdy = _y - f2.y
             let td = dist(tdx, tdy)
             let dp = (mdx * tdx + mdy * tdy) / max(md * td, 0.01)
             let dpf = 1 - abs(dp)
@@ -145,7 +145,7 @@ onpointermove = e => {
             let _s = cam.s
             cam.s *= d2 / d1
             let f = 1 / _s - 1 / cam.s
-            let [w, h] = [canvas.width, canvas.height]
+            let w = canvas.width,  h = canvas.height
             cam.x += (f2.x - w / 2) * f
             cam.y += (f2.y - h / 2) * f
         }
@@ -153,7 +153,7 @@ onpointermove = e => {
     }
 
     if (!e.isPrimary) return
-    [mouse.x, mouse.y] = [x, y]
+    mouse.x = x,  mouse.y = y
     mouse.moved = true
 
     if (keydown.f || mouse_held(2)) {
@@ -402,9 +402,9 @@ onload = () => {
 
 onresize = () => {
     let dpr = devicePixelRatio
-    let [w, h] = [innerWidth * dpr, innerHeight * dpr]
+    let w = innerWidth * dpr,  h = innerHeight * dpr
     if (cam) cam.s *= w / canvas.width
-    ;[canvas.width, canvas.height] = [w, h]
+    canvas.width = w,  canvas.height = h
 }
 onresize()
 
@@ -421,7 +421,7 @@ let update = dt => {
 
 let draw = () => {
     ctx.resetTransform()
-    let [w, h] = [canvas.width, canvas.height]
+    let w = canvas.width,  h = canvas.height
     ctx.clearRect(0, 0, w, h)
     cursor("default")
 
