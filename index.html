@@ -57,6 +57,7 @@ let cursor = v => document.body.style.cursor = v
 
 let mouse = {
     x: 0, y: 0,
+    xv: 0, yv: 0,
     held: { 0: false, 1: false, 2: false },
     moved: false,
 }
@@ -86,7 +87,8 @@ onpointerdown = e => {
     let dpr = devicePixelRatio
     let x = e.clientX * dpr,  y = e.clientY * dpr
 
-    if (e.pointerType == "touch") {
+    let pt = e.pointerType == "touch"
+    if (pt) {
         fingers[e.pointerId] = { x, y }
         if (e.isPrimary) touched = e.pointerId
     }
@@ -96,17 +98,21 @@ onpointerdown = e => {
         mouse.held[e.button] = true
     }
     mouse.x = x,  mouse.y = y
+    mouse.xv = 0,  mouse.yv = 0
     mouse.moved = true
 
-    for (let vv of [...vvs])
-    if (e.button == 0) vv.mousedown()
+    if (e.button == 0 || pt) {
+        for (let vv of [...vvs])
+        vv.mousedown()
 
-    let m = ctx.getTransform().inverse()
-    let {x: mx, y: my} = m.transformPoint(mouse)
+        let m = ctx.getTransform().inverse()
+        let {x: mx, y: my} = m.transformPoint(mouse)
 
-    for (let a of atoms)
-    if (dist(a.x, a.y, mx, my) < 25)
-    held_atom = a
+        for (let a of atoms)
+        if (dist(a.x, a.y, mx, my) < 25)
+        held_atom = a
+    }
+    if (e.button == 2 || pt) cam.held = true
 }
 onpointerup = e => {
     if (e.pointerId in fingers)
@@ -117,7 +123,14 @@ onpointerup = e => {
         mouse.held[e.button] = false
     }
 
-    held_atom = null
+    let pt = e.pointerType == "touch"
+    if (e.button == 0 || pt)
+    { held_atom = null }
+    if (e.button == 2 || pt) {
+        cam.xv = -mouse.xv / cam.s
+        cam.yv = -mouse.yv / cam.s
+        cam.held = false
+    }
 }
 onpointermove = e => {
     let dpr = devicePixelRatio
@@ -129,6 +142,8 @@ onpointermove = e => {
         if (ids.length == 1 && !held_atom) {
             cam.x -= (x - _x) / cam.s
             cam.y -= (y - _y) / cam.s
+            cam.xv = -mouse.xv / cam.s
+            cam.yv = -mouse.yv / cam.s
         } else if (ids.length == 2) {
             let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
             let mdx = (x - _x) / 2,  mdy = (y - _y) / 2
@@ -154,11 +169,15 @@ onpointermove = e => {
 
     if (!e.isPrimary) return
     mouse.x = x,  mouse.y = y
+    mouse.xv = fri_lerp(mouse.xv, e.movementX * dpr / dt, 0.2, dt)
+    mouse.yv = fri_lerp(mouse.yv, e.movementY * dpr / dt, 0.2, dt)
     mouse.moved = true
 
     if (keydown.f || mouse_held(2)) {
-        cam.x -= e.movementX / cam.s
-        cam.y -= e.movementY / cam.s
+        cam.x -= e.movementX * dpr / cam.s
+        cam.y -= e.movementY * dpr / cam.s
+        cam.xv = -mouse.xv / cam.s
+        cam.yv = -mouse.yv / cam.s
     }
 }
 
@@ -179,6 +198,7 @@ onkeydown = e => {
             held_atom = a
             break
         }
+        case "f": cam.held = true; break
     }
     for (let vv of [...vvs]) vv.keydown(key)
 }
@@ -186,7 +206,15 @@ onkeyup = e => {
     let key = e.key.toLowerCase()
     keydown[key] = false
 
-    held_atom = null
+    switch (key) {
+        case "d": held_atom = null; break
+        case "f": {
+            cam.xv = -mouse.xv / cam.s
+            cam.yv = -mouse.yv / cam.s
+            cam.held = false
+            break
+        }
+    }
 }
 
 let rng = (a, b) => {
@@ -389,7 +417,11 @@ class VV {
 }
 
 let init = () => {
-    cam = { x: 0, y: 0, s: canvas.width / 1600 }
+    cam = {
+        x: 0, y: 0, xv: 0, yv: 0,
+        held: false,
+        s: canvas.width / 1600,
+    }
     vvs = [new VV()]
     atoms = []
     bonds = new Map()
@@ -409,6 +441,15 @@ onresize = () => {
 onresize()
 
 let update = dt => {
+    mouse.xv = fri_lerp(mouse.xv, 0, 0.3, dt)
+    mouse.yv = fri_lerp(mouse.yv, 0, 0.3, dt)
+    if (!cam.held) {
+        cam.xv = fri_lerp(cam.xv, 0, 0.05, dt)
+        cam.yv = fri_lerp(cam.yv, 0, 0.05, dt)
+        cam.x += cam.xv * dt
+        cam.y += cam.yv * dt
+    }
+
     if (!vvs.length) vvs = [new VV()]
     for (let vv of [...vvs]) vv.update(dt)
 
@@ -450,9 +491,10 @@ let draw = () => {
 
 let now = () => performance.now()
 let _time = now()
+let dt = 0
 
 let loop = () => {
-    let dt = min((now() - _time) / 1000, 0.1)
+    dt = min((now() - _time) / 1000, 0.1)
     _time = now()
 
     update(dt)
