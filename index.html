@@ -33,7 +33,7 @@ let { min, max, abs, sign, sqrt, exp, sin, cos, tan, atan2 } = Math
 let pi = Math.PI
 
 let clamp = (x, a, b) => min(max(x, a), b)
-let dist = (x1, y1, x2, y2) => sqrt((x2 - x1)**2 + (y2 - y1)**2)
+let dist = (x1, y1, x2=0, y2=0) => sqrt((x2 - x1)**2 + (y2 - y1)**2)
 let lerp = (a, b, t) => a * (1 - t) + b * t
 let fri_lerp = (a, b, t, dt) => {
     let alpha = 1 - exp(-60 * t * dt)
@@ -80,12 +80,16 @@ onwheel = e => {
 oncontextmenu = e => e.preventDefault()
 
 let fingers = {}
+let touched = false
+let touch_left = () => touched !== false && !(touched in fingers)
 onpointerdown = e => {
     let dpr = devicePixelRatio
     let [x, y] = [e.clientX * dpr, e.clientY * dpr]
 
-    if (e.pointerType == "touch")
-    fingers[e.pointerId] = { x, y }
+    if (e.pointerType == "touch") {
+        fingers[e.pointerId] = { x, y }
+        if (e.isPrimary) touched = e.pointerId
+    }
 
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
@@ -120,22 +124,32 @@ onpointermove = e => {
     let [x, y] = [e.clientX * dpr, e.clientY * dpr]
 
     let ids = Object.keys(fingers)
-    if (e.pointerId in fingers && ids.length == 2) {
+    if (e.pointerId in fingers) {
         let {x: _x, y: _y} = fingers[e.pointerId]
-        fingers[e.pointerId] = { x, y }
+        if (ids.length == 1 && !held_atom) {
+            cam.x -= (x - _x) / cam.s
+            cam.y -= (y - _y) / cam.s
+        } else if (ids.length == 2) {
+            let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
+            let [mdx, mdy] = [(x - _x) / 2, (y - _y) / 2]
+            let md = dist(mdx, mdy)
+            let [tdx, tdy] = [_x - f2.x, _y - f2.y]
+            let td = dist(tdx, tdy)
+            let dp = (mdx * tdx + mdy * tdy) / max(md * td, 0.01)
+            let dpf = 1 - abs(dp)
+            cam.x -= mdx * dpf / cam.s
+            cam.y -= mdy * dpf / cam.s
 
-        let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
-        let [m1x, m1y] = [(f2.x + _x) / 2, (f2.y + _y) / 2]
-        let [m2x, m2y] = [(f2.x + x) / 2, (f2.y + y) / 2]
-        cam.x -= (m2x - m1x) / cam.s
-        cam.y -= (m2y - m1y) / cam.s
-        let d1 = dist(f2.x, f2.y, _x, _y)
-        let d2 = dist(f2.x, f2.y, x, y)
-        cam.s *= d2 / d1
-        let f = 1 / d1 - 1 / d2
-        let [w, h] = [canvas.width, canvas.height]
-        cam.x += (f2.x - w / 2) * f
-        cam.y += (f2.y - h / 2) * f
+            let d1 = dist(f2.x, f2.y, _x, _y)
+            let d2 = dist(f2.x, f2.y, x, y)
+            let _s = cam.s
+            cam.s *= d2 / d1
+            let f = 1 / _s - 1 / cam.s
+            let [w, h] = [canvas.width, canvas.height]
+            cam.x += (f2.x - w / 2) * f
+            cam.y += (f2.y - h / 2) * f
+        }
+        fingers[e.pointerId] = { x, y }
     }
 
     if (!e.isPrimary) return
@@ -364,7 +378,7 @@ class VV {
 
         for (let b of Object.values(vv.btns)) {
             let fill = b.fill
-            if (dist(b.x, b.y, mx, my) < 25)
+            if (dist(b.x, b.y, mx, my) < 25 && !touch_left())
             { cursor("pointer"),  fill = "#577" }
             if (fill) circle(b.x, b.y, 25, fill)
             else circle(b.x, b.y, 25, "#122", "line")
@@ -425,7 +439,7 @@ let draw = () => {
 
     for (let a of atoms) {
         let fill = a.fill
-        if (dist(a.x, a.y, mx, my) < 25)
+        if (dist(a.x, a.y, mx, my) < 25 && !touch_left())
         { cursor("pointer"),  fill = "#577" }
         if (fill) circle(a.x, a.y, 25, fill)
         else circle(a.x, a.y, 25, "#122", "line")
