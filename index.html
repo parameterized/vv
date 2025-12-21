@@ -89,6 +89,11 @@ let set_wmouse = () => {
     wmx = x,  wmy = y
 }
 
+let set_held = obj => {
+    held.obj = obj
+    held.start_x = wmx,  held.start_y = wmy
+}
+
 let ui_press = (x, y) => {
     mouse.x = x,  mouse.y = y
     mouse.xv = 0,  mouse.yv = 0
@@ -96,18 +101,38 @@ let ui_press = (x, y) => {
 
     for (let a of atoms)
     if (dist(a.x, a.y, wmx, wmy) < 25)
-    held.obj = a
+    set_held(a)
 
     if (held.obj) return
 
     for (let vv of [...vvs])
-    vv.mousedown()
+    vv.press()
 
-    held.obj ||= cam
+    if (!held.obj) set_held(cam)
 }
 
 let ui_release = () => {
     if (!held.obj) return
+
+    let dx = wmx - held.start_x,  dy = wmy - held.start_y
+    let b = bonding
+    if (dist(dx, dy) < 10 && held.obj instanceof Atom) {
+        held.obj.bonding = !held.obj.bonding
+        if (held.obj.bonding) {
+            b.push(held.obj)
+        } else {
+            bonding = b.filter(v => v != held.obj)
+        }
+    }
+    if (b.length == 2) {
+        for (let i = 0; i < 2; i++) {
+            bonds.set(b[i], bonds.get(b[i]) || new Set())
+            let s = bonds.get(b[i])
+            if (!s.delete(b[1 - i])) s.add(b[1 - i])
+            b[i].bonding = false
+        }
+        bonding = []
+    }
 
     let xv = mouse.xv / cam.s,  yv = mouse.yv / cam.s
     if (held.obj == cam) { xv *= -1,  yv *= -1 }
@@ -279,6 +304,9 @@ class Atom {
         { cursor("pointer"),  fill = "#577" }
         if (fill) circle(a.x, a.y, r, fill)
         else circle(a.x, a.y, r, "#122", "line")
+        if (a.bonding) {
+            circle(a.x, a.y, r * 1.3, "#122", "line")
+        }
     }
 }
 
@@ -316,22 +344,22 @@ class VV {
             x: 65, y: 0, fill: "#bcd",
         },
         red: {
-            fn: () => held.obj = add_atom("#a33"),
+            fn: () => set_held(add_atom("#a33")),
             x: cos(-2 * pi / 3) * 65, y: sin(-2 * pi / 3) * 65,
             fill: "#a33",
         },
         green: {
-            fn: () => held.obj = add_atom("#285"),
+            fn: () => set_held(add_atom("#285")),
             x: cos(-pi / 3) * 65, y: sin(-pi / 3) * 65,
             fill: "#285",
         },
         blue: {
-            fn: () => held.obj = add_atom("#279"),
+            fn: () => set_held(add_atom("#279")),
             x: cos(2 * pi / 3) * 65, y: sin(2 * pi / 3) * 65,
             fill: "#279",
         },
         none: {
-            fn: () => held.obj = add_atom(),
+            fn: () => set_held(add_atom()),
             x: cos(pi / 3) * 65, y: sin(pi / 3) * 65,
         },
     }
@@ -366,7 +394,7 @@ class VV {
         )
     }
 
-    mousedown() {
+    press() {
         let vv = this
         push()
         ctx.translate(vv.x, vv.y)
@@ -431,13 +459,16 @@ class VV {
     }
 }
 
-let cam, held, vvs, atoms, bonds
+let cam, held, bonding
+let vvs, atoms, bonds
 let init = () => {
     cam = {
         x: 0, y: 0, xv: 0, yv: 0,
         s: canvas.width / 1600,
     }
     held = {}
+    bonding = []
+
     vvs = [new VV(0, -30)]
     atoms = []
     bonds = new Map()
@@ -490,6 +521,14 @@ let draw = () => {
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     for (let vv of vvs) vv.draw()
+
+    ctx.strokeStyle = "#122"
+    for (let [a1, a2s] of bonds.entries()) {
+        for (let a2 of a2s) {
+            line(a1.x, a1.y, a2.x, a2.y)
+        }
+    }
+
     for (let a of atoms) a.draw()
 
     pop()
