@@ -61,7 +61,8 @@ let mouse = {
     held: { 0: false, 1: false, 2: false },
     moved: false,
 }
-mouse_held = btn => {
+
+let mouse_held = btn => {
     if (btn == undefined) {
         for (let b in mouse.held)
         if (mouse.held[b]) return true
@@ -78,17 +79,59 @@ onwheel = e => {
     cam.x += (mouse.x - w / 2) * f
     cam.y += (mouse.y - h / 2) * f
 }
+
 oncontextmenu = e => e.preventDefault()
+
+let ui_press = (x, y) => {
+    mouse.x = x,  mouse.y = y
+    mouse.xv = 0,  mouse.yv = 0
+
+    for (let vv of [...vvs])
+    vv.mousedown()
+
+    let m = ctx.getTransform().inverse()
+    let {x: mx, y: my} = m.transformPoint(mouse)
+
+    for (let a of atoms)
+    if (dist(a.x, a.y, mx, my) < 25)
+    held.obj = a
+
+    held.obj ||= cam
+}
+
+let ui_release = () => {
+    if (held.obj) {
+        let xv = mouse.xv / cam.s,  yv = mouse.yv / cam.s
+        if (held.obj == cam) { xv *= -1,  yv *= -1 }
+        held.obj.xv = xv,  held.obj.yv = yv
+        held.obj = false
+    }
+}
+
+let ui_move = (x, y, dx, dy) => {
+    mouse.x = x,  mouse.y = y
+    mouse.xv = fri_lerp(mouse.xv, dx / dt, 0.2, dt)
+    mouse.yv = fri_lerp(mouse.yv, dy / dt, 0.2, dt)
+
+    if (held.obj == cam) {
+        cam.x -= dx / cam.s
+        cam.y -= dy / cam.s
+        cam.xv = -mouse.xv / cam.s
+        cam.yv = -mouse.yv / cam.s
+    }
+}
 
 let fingers = {}
 let touched = false
-let touch_left = () => touched !== false && !(touched in fingers)
+let touch_left = () => (
+    touched !== false && !(touched in fingers)
+)
+
 onpointerdown = e => {
     let dpr = devicePixelRatio
     let x = e.clientX * dpr,  y = e.clientY * dpr
 
-    let pt = e.pointerType == "touch"
-    if (pt) {
+    if (e.pointerType == "touch") {
         fingers[e.pointerId] = { x, y }
         if (e.isPrimary) touched = e.pointerId
     }
@@ -97,22 +140,9 @@ onpointerdown = e => {
     if (e.button in mouse.held) {
         mouse.held[e.button] = true
     }
-    mouse.x = x,  mouse.y = y
-    mouse.xv = 0,  mouse.yv = 0
-
-    if (e.button == 2 || pt) cam.held = true
-    if (e.button == 0 || pt) {
-        for (let vv of [...vvs])
-        vv.mousedown()
-
-        let m = ctx.getTransform().inverse()
-        let {x: mx, y: my} = m.transformPoint(mouse)
-
-        for (let a of atoms)
-        if (dist(a.x, a.y, mx, my) < 25)
-        held_atom = a
-    }
+    ui_press(x, y)
 }
+
 onpointerup = e => {
     if (e.pointerId in fingers)
     delete fingers[e.pointerId]
@@ -121,70 +151,44 @@ onpointerup = e => {
     if (e.button in mouse.held) {
         mouse.held[e.button] = false
     }
-
-    let pt = e.pointerType == "touch"
-    if (e.button == 2 || pt && !held_atom) {
-        cam.xv = -mouse.xv / cam.s
-        cam.yv = -mouse.yv / cam.s
-        cam.held = false
-    }
-    if (e.button == 0 || pt) {
-        if (held_atom) {
-            held_atom.xv = mouse.xv / cam.s
-            held_atom.yv = mouse.yv / cam.s
-        }
-        held_atom = null
-    }
+    ui_release()
 }
+
 onpointermove = e => {
     let dpr = devicePixelRatio
     let x = e.clientX * dpr,  y = e.clientY * dpr
 
+    let pid = e.pointerId
     let ids = Object.keys(fingers)
-    if (e.pointerId in fingers) {
-        let {x: _x, y: _y} = fingers[e.pointerId]
-        if (ids.length == 1 && !held_atom) {
-            cam.x -= (x - _x) / cam.s
-            cam.y -= (y - _y) / cam.s
-            cam.xv = -mouse.xv / cam.s
-            cam.yv = -mouse.yv / cam.s
-        } else if (ids.length == 2) {
-            let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
-            let mdx = (x - _x) / 2,  mdy = (y - _y) / 2
-            let md = dist(mdx, mdy)
-            let tdx = _x - f2.x,  tdy = _y - f2.y
-            let td = dist(tdx, tdy)
-            let dp = (mdx * tdx + mdy * tdy) / max(md * td, 0.01)
-            let dpf = 1 - abs(dp)
-            cam.x -= mdx * dpf / cam.s
-            cam.y -= mdy * dpf / cam.s
+    if (pid in fingers && ids.length == 2) {
+        let {x: _x, y: _y} = fingers[pid]
+        let f2 = fingers[ids[ids[0] == pid ? 1 : 0]]
+        let mdx = (x - _x) / 2,  mdy = (y - _y) / 2
+        let md = dist(mdx, mdy)
+        let tdx = _x - f2.x,  tdy = _y - f2.y
+        let td = dist(tdx, tdy)
+        let dp = (mdx * tdx + mdy * tdy) / max(md * td, 0.01)
+        let dpf = 1 - abs(dp)
+        cam.x -= mdx * dpf / cam.s
+        cam.y -= mdy * dpf / cam.s
 
-            let d1 = dist(f2.x, f2.y, _x, _y)
-            let d2 = dist(f2.x, f2.y, x, y)
-            let _s = cam.s
-            cam.s *= d2 / d1
-            let f = 1 / _s - 1 / cam.s
-            let w = canvas.width,  h = canvas.height
-            cam.x += (f2.x - w / 2) * f
-            cam.y += (f2.y - h / 2) * f
-        }
-        fingers[e.pointerId] = { x, y }
+        let d1 = dist(f2.x, f2.y, _x, _y)
+        let d2 = dist(f2.x, f2.y, x, y)
+        let _s = cam.s
+        cam.s *= d2 / d1
+        let f = 1 / _s - 1 / cam.s
+        let w = canvas.width,  h = canvas.height
+        cam.x += (f2.x - w / 2) * f
+        cam.y += (f2.y - h / 2) * f
     }
+    if (pid in fingers) fingers[pid] = { x, y }
 
     if (!e.isPrimary) return
-    mouse.x = x,  mouse.y = y
-    mouse.xv = fri_lerp(mouse.xv, e.movementX * dpr / dt, 0.2, dt)
-    mouse.yv = fri_lerp(mouse.yv, e.movementY * dpr / dt, 0.2, dt)
-
-    if (keydown.f || mouse_held(2)) {
-        cam.x -= e.movementX * dpr / cam.s
-        cam.y -= e.movementY * dpr / cam.s
-        cam.xv = -mouse.xv / cam.s
-        cam.yv = -mouse.yv / cam.s
-    }
+    ui_move(x, y, e.movementX * dpr, e.movementY * dpr)
 }
 
 let keydown = {}
+
 onkeydown = e => {
     let key = e.key.toLowerCase()
     if (e.repeat || e.ctrlKey) return
@@ -193,38 +197,15 @@ onkeydown = e => {
     let m = ctx.getTransform().inverse()
     let {x: mx, y: my} = m.transformPoint(mouse)
 
-    switch (key) {
-        case "r": init(); break
-        case "d": {
-            for (let a of atoms)
-            if (dist(a.x, a.y, mx, my) < 25)
-            held_atom = a
-            break
-        }
-        case "f": cam.held = true; break
-    }
-    for (let vv of [...vvs]) vv.keydown(key)
+    if (key == "r") init()
+    if ("df".includes(key)) ui_press(mouse.x, mouse.y)
 }
+
 onkeyup = e => {
     let key = e.key.toLowerCase()
     keydown[key] = false
 
-    switch (key) {
-        case "d": {
-            if (held_atom) {
-                held_atom.xv = mouse.xv / cam.s
-                held_atom.yv = mouse.yv / cam.s
-            }
-            held_atom = null
-            break
-        }
-        case "f": {
-            cam.xv = -mouse.xv / cam.s
-            cam.yv = -mouse.yv / cam.s
-            cam.held = false
-            break
-        }
-    }
+    if ("df".includes(key)) ui_release()
 }
 
 let rng = (a, b) => {
@@ -268,9 +249,6 @@ let _mats = []
 let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
 
-let cam, vvs, atoms, bonds
-let held_atom
-
 let add_atom = fill => {
     let a = { fill, x: 0, y: 0, xv: 0, yv: 0 }
     atoms.push(a)
@@ -305,22 +283,22 @@ class VV {
             x: 65, y: 0, fill: "#bcd",
         },
         red: {
-            fn: () => held_atom = add_atom("#a33"),
+            fn: () => held.obj = add_atom("#a33"),
             x: cos(-2 * pi / 3) * 65, y: sin(-2 * pi / 3) * 65,
             fill: "#a33",
         },
         green: {
-            fn: () => held_atom = add_atom("#285"),
+            fn: () => held.obj = add_atom("#285"),
             x: cos(-pi / 3) * 65, y: sin(-pi / 3) * 65,
             fill: "#285",
         },
         blue: {
-            fn: () => held_atom = add_atom("#279"),
+            fn: () => held.obj = add_atom("#279"),
             x: cos(2 * pi / 3) * 65, y: sin(2 * pi / 3) * 65,
             fill: "#279",
         },
         none: {
-            fn: () => held_atom = add_atom(),
+            fn: () => held.obj = add_atom(),
             x: cos(pi / 3) * 65, y: sin(pi / 3) * 65,
         },
     }
@@ -369,11 +347,6 @@ class VV {
         if (dist(b.x, b.y, mx, my) < 25) b.fn()
 
         pop()
-    }
-
-    keydown(key) {
-        if (key != "d") return
-        this.mousedown()
     }
 
     draw() {
@@ -426,12 +399,13 @@ class VV {
     }
 }
 
+let cam, held, vvs, atoms, bonds
 let init = () => {
     cam = {
         x: 0, y: 0, xv: 0, yv: 0,
-        held: false,
         s: canvas.width / 1600,
     }
+    held = {}
     vvs = [new VV(0, -30)]
     atoms = []
     bonds = new Map()
@@ -453,7 +427,7 @@ onresize()
 let update = dt => {
     mouse.xv = fri_lerp(mouse.xv, 0, 0.3, dt)
     mouse.yv = fri_lerp(mouse.yv, 0, 0.3, dt)
-    if (!cam.held) {
+    if (held.obj != cam) {
         cam.xv = fri_lerp(cam.xv, 0, 0.05, dt)
         cam.yv = fri_lerp(cam.yv, 0, 0.05, dt)
         cam.x += cam.xv * dt
@@ -466,13 +440,13 @@ let update = dt => {
     let m = ctx.getTransform().inverse()
     let {x: mx, y: my} = m.transformPoint(mouse)
 
-    let ha = held_atom
-    if (ha) { ha.x = mx,  ha.y = my }
+    let h = held.obj
+    if (h && h != cam) { h.x = mx,  h.y = my }
 
     for (let a of atoms)
-    if (a != ha) {
-        a.xv = fri_lerp(a.xv, 0, 0.15, dt)
-        a.yv = fri_lerp(a.yv, 0, 0.15, dt)
+    if (a != h) {
+        a.xv = fri_lerp(a.xv, 0, 0.1, dt)
+        a.yv = fri_lerp(a.yv, 0, 0.1, dt)
         a.x += a.xv * dt
         a.y += a.yv * dt
     }
