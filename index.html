@@ -14,7 +14,7 @@
         margin: 0;
         overflow: hidden;
         background: #523f38;
-        touch-action: pinch-zoom;
+        touch-action: none;
     }
     canvas {
         position: absolute;
@@ -68,17 +68,7 @@ mouse_held = btn => {
     }
     return btn in mouse.held && mouse.held[btn]
 }
-onpointermove = e => {
-    if (!e.isPrimary) return
-    mouse.x = e.clientX * devicePixelRatio
-    mouse.y = e.clientY * devicePixelRatio
-    mouse.moved = true
 
-    if (keydown.f || mouse_held(2)) {
-        cam.x -= e.movementX / cam.s
-        cam.y -= e.movementY / cam.s
-    }
-}
 onwheel = e => {
     let _s = cam.s
     cam.s *= exp(-e.deltaY / 1000)
@@ -88,32 +78,74 @@ onwheel = e => {
     cam.y += (mouse.y - h / 2) * f
 }
 oncontextmenu = e => e.preventDefault()
+
+let fingers = {}
 onpointerdown = e => {
+    let dpr = devicePixelRatio
+    let [x, y] = [e.clientX * dpr, e.clientY * dpr]
+
+    if (e.pointerType == "touch")
+    fingers[e.pointerId] = { x, y }
+
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
         mouse.held[e.button] = true
     }
-    mouse.x = e.clientX * devicePixelRatio
-    mouse.y = e.clientY * devicePixelRatio
+    [mouse.x, mouse.y] = [x, y]
     mouse.moved = true
 
     for (let vv of [...vvs])
     if (e.button == 0) vv.mousedown()
 
     let m = ctx.getTransform().inverse()
-    let {x, y} = m.transformPoint(mouse)
+    let {x: mx, y: my} = m.transformPoint(mouse)
 
     for (let a of atoms)
-    if (dist(a.x, a.y, x, y) < 25)
+    if (dist(a.x, a.y, mx, my) < 25)
     held_atom = a
 }
 onpointerup = e => {
+    if (e.pointerId in fingers)
+    delete fingers[e.pointerId]
+
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
         mouse.held[e.button] = false
     }
 
     held_atom = null
+}
+onpointermove = e => {
+    let dpr = devicePixelRatio
+    let [x, y] = [e.clientX * dpr, e.clientY * dpr]
+
+    let ids = Object.keys(fingers)
+    if (e.pointerId in fingers && ids.length == 2) {
+        let {x: _x, y: _y} = fingers[e.pointerId]
+        fingers[e.pointerId] = { x, y }
+
+        let f2 = fingers[ids[ids[0] == e.pointerId ? 1 : 0]]
+        let [m1x, m1y] = [(f2.x + _x) / 2, (f2.y + _y) / 2]
+        let [m2x, m2y] = [(f2.x + x) / 2, (f2.y + y) / 2]
+        cam.x -= (m2x - m1x) / cam.s
+        cam.y -= (m2y - m1y) / cam.s
+        let d1 = dist(f2.x, f2.y, _x, _y)
+        let d2 = dist(f2.x, f2.y, x, y)
+        cam.s *= d2 / d1
+        let f = 1 / d1 - 1 / d2
+        let [w, h] = [canvas.width, canvas.height]
+        cam.x += (f2.x - w / 2) * f
+        cam.y += (f2.y - h / 2) * f
+    }
+
+    if (!e.isPrimary) return
+    [mouse.x, mouse.y] = [x, y]
+    mouse.moved = true
+
+    if (keydown.f || mouse_held(2)) {
+        cam.x -= e.movementX / cam.s
+        cam.y -= e.movementY / cam.s
+    }
 }
 
 let keydown = {}
@@ -123,13 +155,13 @@ onkeydown = e => {
     keydown[key] = true
 
     let m = ctx.getTransform().inverse()
-    let {x, y} = m.transformPoint(mouse)
+    let {x: mx, y: my} = m.transformPoint(mouse)
 
     switch (key) {
         case "r": init(); break
         case "d": {
             for (let a of atoms)
-            if (dist(a.x, a.y, x, y) < 25)
+            if (dist(a.x, a.y, mx, my) < 25)
             held_atom = a
             break
         }
@@ -279,10 +311,10 @@ class VV {
         ctx.scale(vv.s, vv.s)
 
         let m = ctx.getTransform().inverse()
-        let {x, y} = m.transformPoint(mouse)
+        let {x: mx, y: my} = m.transformPoint(mouse)
 
         for (let b of Object.values(vv.btns))
-        if (dist(x, y, b.x, b.y) < 25) b.fn()
+        if (dist(b.x, b.y, mx, my) < 25) b.fn()
 
         pop()
     }
@@ -328,11 +360,11 @@ class VV {
         pop()
 
         let m = ctx.getTransform().inverse()
-        let {x, y} = m.transformPoint(mouse)
+        let {x: mx, y: my} = m.transformPoint(mouse)
 
         for (let b of Object.values(vv.btns)) {
             let fill = b.fill
-            if (dist(x, y, b.x, b.y) < 25)
+            if (dist(b.x, b.y, mx, my) < 25)
             { cursor("pointer"),  fill = "#577" }
             if (fill) circle(b.x, b.y, 25, fill)
             else circle(b.x, b.y, 25, "#122", "line")
@@ -367,10 +399,10 @@ let update = dt => {
     for (let vv of [...vvs]) vv.update(dt)
 
     let m = ctx.getTransform().inverse()
-    let {x, y} = m.transformPoint(mouse)
+    let {x: mx, y: my} = m.transformPoint(mouse)
 
     let a = held_atom
-    if (a) { a.x = x,  a.y = y }
+    if (a) { a.x = mx,  a.y = my }
 }
 
 let draw = () => {
@@ -389,11 +421,11 @@ let draw = () => {
     for (let vv of vvs) vv.draw()
 
     let m = ctx.getTransform().inverse()
-    let {x, y} = m.transformPoint(mouse)
+    let {x: mx, y: my} = m.transformPoint(mouse)
 
     for (let a of atoms) {
         let fill = a.fill
-        if (dist(a.x, a.y, x, y) < 25)
+        if (dist(a.x, a.y, mx, my) < 25)
         { cursor("pointer"),  fill = "#577" }
         if (fill) circle(a.x, a.y, 25, fill)
         else circle(a.x, a.y, 25, "#122", "line")
