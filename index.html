@@ -82,30 +82,37 @@ onwheel = e => {
 
 oncontextmenu = e => e.preventDefault()
 
+let wmx = 0,  wmy = 0
+let set_wmouse = () => {
+    let m = ctx.getTransform().inverse()
+    let { x, y } = m.transformPoint(mouse)
+    wmx = x,  wmy = y
+}
+
 let ui_press = (x, y) => {
     mouse.x = x,  mouse.y = y
     mouse.xv = 0,  mouse.yv = 0
+    set_wmouse()
+
+    for (let a of atoms)
+    if (dist(a.x, a.y, wmx, wmy) < 25)
+    held.obj = a
+
+    if (held.obj) return
 
     for (let vv of [...vvs])
     vv.mousedown()
-
-    let m = ctx.getTransform().inverse()
-    let {x: mx, y: my} = m.transformPoint(mouse)
-
-    for (let a of atoms)
-    if (dist(a.x, a.y, mx, my) < 25)
-    held.obj = a
 
     held.obj ||= cam
 }
 
 let ui_release = () => {
-    if (held.obj) {
-        let xv = mouse.xv / cam.s,  yv = mouse.yv / cam.s
-        if (held.obj == cam) { xv *= -1,  yv *= -1 }
-        held.obj.xv = xv,  held.obj.yv = yv
-        held.obj = false
-    }
+    if (!held.obj) return
+
+    let xv = mouse.xv / cam.s,  yv = mouse.yv / cam.s
+    if (held.obj == cam) { xv *= -1,  yv *= -1 }
+    held.obj.xv = xv,  held.obj.yv = yv
+    held.obj = false
 }
 
 let ui_move = (x, y, dx, dy) => {
@@ -183,7 +190,7 @@ onpointermove = e => {
     }
     if (pid in fingers) fingers[pid] = { x, y }
 
-    if (!e.isPrimary) return
+    if (e.isPrimary)
     ui_move(x, y, e.movementX * dpr, e.movementY * dpr)
 }
 
@@ -193,9 +200,6 @@ onkeydown = e => {
     let key = e.key.toLowerCase()
     if (e.repeat || e.ctrlKey) return
     keydown[key] = true
-
-    let m = ctx.getTransform().inverse()
-    let {x: mx, y: my} = m.transformPoint(mouse)
 
     if (key == "r") init()
     if ("df".includes(key)) ui_press(mouse.x, mouse.y)
@@ -249,8 +253,37 @@ let _mats = []
 let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
 
+class Atom {
+    x = 0; y = 0; xv = 0; yv = 0
+    r = 25
+
+    constructor(fill) {
+        this.fill = fill
+    }
+
+    update(dt) {
+        let a = this
+        if (a == held.obj) return
+
+        a.xv = fri_lerp(a.xv, 0, 0.1, dt)
+        a.yv = fri_lerp(a.yv, 0, 0.1, dt)
+        a.x += a.xv * dt
+        a.y += a.yv * dt
+    }
+
+    draw() {
+        let a = this
+        let fill = a.fill
+        let r = a.r || 25
+        if (dist(a.x, a.y, wmx, wmy) < r && !touch_left())
+        { cursor("pointer"),  fill = "#577" }
+        if (fill) circle(a.x, a.y, r, fill)
+        else circle(a.x, a.y, r, "#122", "line")
+    }
+}
+
 let add_atom = fill => {
-    let a = { fill, x: 0, y: 0, xv: 0, yv: 0 }
+    let a = new Atom(fill)
     atoms.push(a)
     return a
 }
@@ -385,15 +418,14 @@ class VV {
         pop()
 
         let m = ctx.getTransform().inverse()
-        let {x: mx, y: my} = m.transformPoint(mouse)
+        let _wmx = wmx,  _wmy = wmy
+        let { x, y } = m.transformPoint(mouse)
+        wmx = x,  wmy = y
 
-        for (let b of Object.values(vv.btns)) {
-            let fill = b.fill
-            if (dist(b.x, b.y, mx, my) < 25 && !touch_left())
-            { cursor("pointer"),  fill = "#577" }
-            if (fill) circle(b.x, b.y, 25, fill)
-            else circle(b.x, b.y, 25, "#122", "line")
-        }
+        for (let b of Object.values(vv.btns))
+        Atom.prototype.draw.call(b)
+
+        wmx = _wmx,  wmy = _wmy
 
         pop()
     }
@@ -427,7 +459,10 @@ onresize()
 let update = dt => {
     mouse.xv = fri_lerp(mouse.xv, 0, 0.3, dt)
     mouse.yv = fri_lerp(mouse.yv, 0, 0.3, dt)
-    if (held.obj != cam) {
+
+    let h = held.obj
+    if (h != cam) {
+        if (h) { h.x = wmx,  h.y = wmy }
         cam.xv = fri_lerp(cam.xv, 0, 0.05, dt)
         cam.yv = fri_lerp(cam.yv, 0, 0.05, dt)
         cam.x += cam.xv * dt
@@ -436,20 +471,7 @@ let update = dt => {
 
     if (!vvs.length) vvs = [new VV(0, -30)]
     for (let vv of [...vvs]) vv.update(dt)
-
-    let m = ctx.getTransform().inverse()
-    let {x: mx, y: my} = m.transformPoint(mouse)
-
-    let h = held.obj
-    if (h && h != cam) { h.x = mx,  h.y = my }
-
-    for (let a of atoms)
-    if (a != h) {
-        a.xv = fri_lerp(a.xv, 0, 0.1, dt)
-        a.yv = fri_lerp(a.yv, 0, 0.1, dt)
-        a.x += a.xv * dt
-        a.y += a.yv * dt
-    }
+    for (let a of atoms) a.update(dt)
 }
 
 let draw = () => {
@@ -461,22 +483,14 @@ let draw = () => {
     ctx.translate(w / 2, h / 2)
     ctx.scale(cam.s, cam.s)
     ctx.translate(-cam.x, -cam.y)
+
     push()
+    set_wmouse()
 
     ctx.lineCap = "round"
     ctx.lineJoin = "round"
     for (let vv of vvs) vv.draw()
-
-    let m = ctx.getTransform().inverse()
-    let {x: mx, y: my} = m.transformPoint(mouse)
-
-    for (let a of atoms) {
-        let fill = a.fill
-        if (dist(a.x, a.y, mx, my) < 25 && !touch_left())
-        { cursor("pointer"),  fill = "#577" }
-        if (fill) circle(a.x, a.y, 25, fill)
-        else circle(a.x, a.y, 25, "#122", "line")
-    }
+    for (let a of atoms) a.draw()
 
     pop()
 }
