@@ -145,7 +145,7 @@ let ui_move = (x, y, dx, dy) => {
     mouse.xv = fri_lerp(mouse.xv, dx / dt, 0.2, dt)
     mouse.yv = fri_lerp(mouse.yv, dy / dt, 0.2, dt)
 
-    if (held.obj == cam) {
+    if (held.obj == cam && fingers.size < 2) {
         cam.x -= dx / cam.s
         cam.y -= dy / cam.s
         cam.xv = -mouse.xv / cam.s
@@ -153,18 +153,20 @@ let ui_move = (x, y, dx, dy) => {
     }
 }
 
-let fingers = {}
+let fingers = new Map()
 let touched = false
 let touch_left = () => (
-    touched !== false && !(touched in fingers)
+    touched !== false && !fingers.has(touched)
 )
+
+onblur = () => fingers.clear()
 
 onpointerdown = e => {
     let dpr = devicePixelRatio
     let x = e.clientX * dpr,  y = e.clientY * dpr
 
     if (e.pointerType == "touch") {
-        fingers[e.pointerId] = { x, y }
+        fingers.set(e.pointerId, { x, y })
         if (e.isPrimary) touched = e.pointerId
     }
 
@@ -176,8 +178,7 @@ onpointerdown = e => {
 }
 
 onpointerup = e => {
-    if (e.pointerId in fingers)
-    delete fingers[e.pointerId]
+    fingers.delete(e.pointerId)
 
     if (!e.isPrimary) return
     if (e.button in mouse.held) {
@@ -191,10 +192,10 @@ onpointermove = e => {
     let x = e.clientX * dpr,  y = e.clientY * dpr
 
     let pid = e.pointerId
-    let ids = Object.keys(fingers)
-    if (pid in fingers && ids.length == 2) {
-        let {x: _x, y: _y} = fingers[pid]
-        let f2 = fingers[ids[ids[0] == pid ? 1 : 0]]
+    let ids = [...fingers.keys()]
+    if (fingers.has(pid) && ids.length == 2) {
+        let { x: _x, y: _y } = fingers.get(pid)
+        let f2 = fingers.get(ids[ids[0] == pid ? 1 : 0])
         let mdx = (x - _x) / 2,  mdy = (y - _y) / 2
         let md = dist(mdx, mdy)
         let tdx = _x - f2.x,  tdy = _y - f2.y
@@ -213,7 +214,8 @@ onpointermove = e => {
         cam.x += (f2.x - w / 2) * f
         cam.y += (f2.y - h / 2) * f
     }
-    if (pid in fingers) fingers[pid] = { x, y }
+    let fp = fingers.get(pid)
+    if (fp) { fp.x = x,  fp.y = y }
 
     if (e.isPrimary)
     ui_move(x, y, e.movementX * dpr, e.movementY * dpr)
@@ -402,7 +404,7 @@ class VV {
         ctx.scale(vv.s, vv.s)
 
         let m = ctx.getTransform().inverse()
-        let {x: mx, y: my} = m.transformPoint(mouse)
+        let { x: mx, y: my } = m.transformPoint(mouse)
 
         for (let b of Object.values(vv.btns))
         if (dist(b.x, b.y, mx, my) < 25) b.fn()
