@@ -267,6 +267,7 @@ let pop = () => ctx.setTransform(_mats.pop())
 class Atom {
     x = 0; y = 0; xv = 0; yv = 0
     r = 25
+    target_dist = 100
 
     constructor(fill) {
         this.fill = fill
@@ -291,6 +292,21 @@ class Atom {
         a.yv = fri_lerp(a.yv, 0, 0.1, dt)
         a.x += a.xv * dt
         a.y += a.yv * dt
+
+        let s = bonds.get(a)
+        if (!s) return
+        let tdx = 0,  tdy = 0
+        for (let a2 of s) {
+            let dx = a.x - a2.x,  dy = a.y - a2.y
+            let d = dist(dx, dy)
+            let td = sqrt(a.target_dist * a2.target_dist)
+            let tx = a2.x + dx * td / d
+            let ty = a2.y + dy * td / d
+            tdx += tx - a.x,  tdy += ty - a.y
+        }
+        tdx /= s.size,  tdy /= s.size
+        a.x = fri_lerp(a.x, a.x + tdx, 0.5, dt)
+        a.y = fri_lerp(a.y, a.y + tdy, 0.5, dt)
     }
 
     tap() {
