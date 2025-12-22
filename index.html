@@ -29,7 +29,9 @@
 <body>
 <canvas ondragstart="return false"></canvas>
 <script>
-let { min, max, abs, sign, sqrt, exp, sin, cos, tan, atan2 } = Math
+let {
+    min, max, abs, sign, sqrt, pow, exp, sin, cos, tan, atan2
+} = Math
 let pi = Math.PI
 
 let clamp = (x, a, b) => min(max(x, a), b)
@@ -41,7 +43,7 @@ let fri_lerp = (a, b, t, dt) => {
 }
 
 let ease = {
-    outQuad: t => t * (2 - t),
+    outQuart: t => 1 - pow(1 - t, 4),
     outBounce: t => {
         let n1 = 7.5625,  d1 = 2.75
         if (t < 1 / d1) return n1 * t * t
@@ -294,7 +296,7 @@ class Atom {
         a.y += a.yv * dt
 
         let s = bonds.get(a)
-        if (!s) return
+        if (!s || !s.size) return
         let tdx = 0,  tdy = 0
         for (let a2 of s) {
             let dx = a.x - a2.x,  dy = a.y - a2.y
@@ -436,6 +438,17 @@ class VV {
         ctx.rotate(vv.a)
         ctx.scale(vv.s, vv.s)
 
+        let btn_slide_t = (vv.open
+            ? ease.outQuart(vv.open_t)
+            : 1 - ease.outQuart(1 - vv.open_t)
+        )
+        let btn_roll_t = 1 - btn_slide_t
+
+        ctx.translate(0, 120 * btn_slide_t)
+        ctx.rotate(-pi * btn_roll_t)
+        let s = lerp(1, 1.6, btn_slide_t)
+        ctx.scale(s, s)
+
         let m = ctx.getTransform().inverse()
         let { x: mx, y: my } = m.transformPoint(mouse)
 
@@ -457,6 +470,12 @@ class VV {
             : 1 - ease.outBounce(1 - vv.open_t)
         )
         let roll_t = 1 - slide_t
+        let btn_slide_t = (vv.open
+            ? ease.outQuart(vv.open_t)
+            : 1 - ease.outQuart(1 - vv.open_t)
+        )
+        let btn_roll_t = 1 - btn_slide_t
+
         let h = tan(pi / 3) * 200
         let mid = tan(pi / 6) * 200
 
@@ -479,6 +498,11 @@ class VV {
         line(-200, 0, 0, h, "#47352f")
         line(0, h, 200, 0)
         pop()
+
+        ctx.translate(0, 120 * btn_slide_t)
+        ctx.rotate(-pi * btn_roll_t)
+        let s = lerp(1, 1.6, btn_slide_t)
+        ctx.scale(s, s)
 
         let m = ctx.getTransform().inverse()
         let _wmx = wmx,  _wmy = wmy
