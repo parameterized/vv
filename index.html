@@ -343,11 +343,46 @@ class Atom {
         for (let a2 of atoms) {
             if (a2 == a) continue
             if (dist(wmx, wmy, a2.x, a2.y) < a2.r)
-            { bond(a, a2); break }
+            { bond(a, a2); return }
+        }
+
+        for (let vv of vvs) {
+            if (!vv.open || vv.open_t < 1) continue
+
+            push()
+            ctx.translate(vv.x, vv.y)
+            ctx.rotate(vv.a)
+            ctx.scale(vv.s, vv.s)
+            let h = tan(pi / 3) * 200
+            let mid = tan(pi / 6) * 200
+            ctx.translate(0, -mid)
+
+            let m = ctx.getTransform().inverse()
+            let { x: mx, y: my } = m.transformPoint(mouse)
+
+            let in_vv = false
+            if (dist(-500, 0, mx, my) < 50)
+            { vv.atoms[0] = a,  in_vv = true }
+            if (dist(-300, h, mx, my) < 50)
+            { vv.atoms[1] = a,  in_vv = true }
+            if (dist(-100, 0, mx, my) < 50)
+            { vv.atoms[2] = a,  in_vv = true }
+            if (dist(100, 0, mx, my) < 50)
+            { vv.atoms[3] = a,  in_vv = true }
+            if (dist(300, h, mx, my) < 50)
+            { vv.atoms[4] = a,  in_vv = true }
+            if (dist(500, 0, mx, my) < 50)
+            { vv.atoms[5] = a,  in_vv = true }
+
+            if (in_vv) a.rm()
+
+            pop()
         }
     }
 
-    draw() {
+    draw(no_hover, mx, my) {
+        if (mx == undefined) mx = wmx
+        if (my == undefined) my = wmy
         let a = this
         let r = a.r || 25
         if (a.fill) circle(a.x, a.y, r, a.fill)
@@ -355,7 +390,8 @@ class Atom {
         if (bonding.includes(a)) {
             circle(a.x, a.y, r * 1.3, "#122", "line")
         }
-        if (dist(a.x, a.y, wmx, wmy) < r && !touch_left()) {
+        if (no_hover) return
+        if (dist(a.x, a.y, mx, my) < r && !touch_left()) {
             cursor("pointer")
             ctx.globalAlpha = 0.5
             circle(a.x, a.y, r, "#444")
@@ -394,6 +430,7 @@ class VV {
                 vvs.push(vv2)
                 vv2.yv = rng(6000, 10000)
                 vv2.xv = rng(-2000, 2000)
+                vv2.atoms = [...this.atoms]
             },
             x: 65, y: 0, fill: "#bcd",
         },
@@ -424,6 +461,10 @@ class VV {
         let [xv, yv] = rngc(300)
         vv.xv = xv,  vv.yv = yv
         vv.av = rng(0.2, 0.8) * sign(rng(-1, 1))
+
+        vv.atoms = []
+        for (let i = 0; i < 6; i++)
+        vv.atoms.push(new Atom())
     }
 
     update(dt) {
@@ -496,24 +537,40 @@ class VV {
         let h = tan(pi / 3) * 200
         let mid = tan(pi / 6) * 200
 
-        ctx.lineWidth = 100
+        let ad = Atom.prototype.draw
 
         push()
         ctx.translate(300 * slide_t, 0)
         ctx.rotate(-pi / 2 * roll_t)
         ctx.translate(0, -mid)
+        ctx.lineWidth = 100
         line(-200, 0, 200, 0, "#4d3b34")
         line(-200, 0, 0, h, "#47352f")
         line(0, h, 200, 0)
+
+        if (vv.atoms[3].fill)
+        ad.call({ ...vv.atoms[3], x: -200, y: 0, r: 50 }, true)
+        if (vv.atoms[4].fill)
+        ad.call({ ...vv.atoms[4], x: 0, y: h, r: 50 }, true)
+        if (vv.atoms[5].fill)
+        ad.call({ ...vv.atoms[5], x: 200, y: 0, r: 50 }, true)
         pop()
 
         push()
         ctx.translate(-300 * slide_t, 0)
         ctx.rotate(pi / 2 * roll_t)
         ctx.translate(0, -mid)
+        ctx.lineWidth = 100
         line(-200, 0, 200, 0, "#4d3b34")
         line(-200, 0, 0, h, "#47352f")
         line(0, h, 200, 0)
+
+        if (vv.atoms[0].fill)
+        ad.call({ ...vv.atoms[0], x: -200, y: 0, r: 50 }, true)
+        if (vv.atoms[1].fill)
+        ad.call({ ...vv.atoms[1], x: 0, y: h, r: 50 }, true)
+        if (vv.atoms[2].fill)
+        ad.call({ ...vv.atoms[2], x: 200, y: 0, r: 50 }, true)
         pop()
 
         ctx.translate(0, 120 * btn_slide_t)
@@ -522,14 +579,10 @@ class VV {
         ctx.scale(s, s)
 
         let m = ctx.getTransform().inverse()
-        let _wmx = wmx,  _wmy = wmy
-        let { x, y } = m.transformPoint(mouse)
-        wmx = x,  wmy = y
+        let { x: mx, y: my } = m.transformPoint(mouse)
 
         for (let b of Object.values(vv.btns))
-        Atom.prototype.draw.call(b)
-
-        wmx = _wmx,  wmy = _wmy
+        ad.call(b, false, mx, my)
 
         pop()
     }
