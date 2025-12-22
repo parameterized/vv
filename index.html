@@ -349,14 +349,17 @@ class Atom {
 
     draw() {
         let a = this
-        let fill = a.fill
         let r = a.r || 25
-        if (dist(a.x, a.y, wmx, wmy) < r && !touch_left())
-        { cursor("pointer"),  fill = "#577" }
-        if (fill) circle(a.x, a.y, r, fill)
+        if (a.fill) circle(a.x, a.y, r, a.fill)
         else circle(a.x, a.y, r, "#122", "line")
         if (bonding.includes(a)) {
             circle(a.x, a.y, r * 1.3, "#122", "line")
+        }
+        if (dist(a.x, a.y, wmx, wmy) < r && !touch_left()) {
+            cursor("pointer")
+            ctx.globalAlpha = 0.5
+            circle(a.x, a.y, r, "#444")
+            ctx.globalAlpha = 1
         }
     }
 }
