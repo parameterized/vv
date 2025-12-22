@@ -118,7 +118,10 @@ let ui_release = () => {
     let h = held.obj
     if (!h) return
 
-    if (!held.moved && h instanceof Atom) h.tap()
+    if (h instanceof Atom) {
+        if (held.moved) h.drop()
+        else h.tap()
+    }
 
     let xv = mouse.xv / cam.s,  yv = mouse.yv / cam.s
     if (h == cam) { xv *= -1,  yv *= -1 }
@@ -266,6 +269,22 @@ let _mats = []
 let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
 
+let bond = (a1, a2) => {
+    let a12 = [a1, a2]
+    for (let i = 0; i < 2; i++) {
+        bonds.set(a12[i], bonds.get(a12[i]) || new Set())
+        let s = bonds.get(a12[i])
+        if (!s.delete(a12[1 - i])) s.add(a12[1 - i])
+    }
+
+    let a1s = bonds.get(a1),  a2s = bonds.get(a2)
+    if (!a1.fill && a1s.has(a2)
+        || !a2.fill && a2s.has(a1)
+    ) { a1.rm(),  a2.rm() }
+
+    bonding = bonding.filter(v => !a12.includes(v))
+}
+
 class Atom {
     x = 0; y = 0; xv = 0; yv = 0
     r = 25
@@ -313,24 +332,19 @@ class Atom {
 
     tap() {
         let a = this,  b = bonding
-        a.bonding = !a.bonding
-        if (a.bonding) b.push(a)
-        else bonding = b.filter(v => v != a)
-        if (b.length != 2) return
+        if (b.includes(a)) bonding = b.filter(v => v != a)
+        else b.push(a)
 
-        for (let i = 0; i < 2; i++) {
-            bonds.set(b[i], bonds.get(b[i]) || new Set())
-            let s = bonds.get(b[i])
-            if (!s.delete(b[1 - i])) s.add(b[1 - i])
-            b[i].bonding = false
+        if (b.length == 2) bond(...b)
+    }
+
+    drop() {
+        let a = this
+        for (let a2 of atoms) {
+            if (a2 == a) continue
+            if (dist(wmx, wmy, a2.x, a2.y) < a2.r)
+            { bond(a, a2); break }
         }
-
-        let b0s = bonds.get(b[0]),  b1s = bonds.get(b[1])
-        if (!b[0].fill && b0s.has(b[1])
-            || !b[1].fill && b1s.has(b[0])
-        ) { b[0].rm(),  b[1].rm() }
-
-        bonding = []
     }
 
     draw() {
@@ -341,7 +355,7 @@ class Atom {
         { cursor("pointer"),  fill = "#577" }
         if (fill) circle(a.x, a.y, r, fill)
         else circle(a.x, a.y, r, "#122", "line")
-        if (a.bonding) {
+        if (bonding.includes(a)) {
             circle(a.x, a.y, r * 1.3, "#122", "line")
         }
     }
