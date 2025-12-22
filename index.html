@@ -593,12 +593,12 @@ let vvs, atoms, bonds
 let init = () => {
     cam = {
         x: 0, y: 0, xv: 0, yv: 0,
-        s: canvas.width / 1600,
+        s: canvas.width / 1200,
     }
     held = {}
     bonding = []
 
-    vvs = [new VV(0, -30)]
+    vvs = [new VV(0, -50)]
     atoms = []
     bonds = new Map()
 }
@@ -635,7 +635,7 @@ let update = dt => {
         cam.y += cam.yv * dt
     }
 
-    if (!vvs.length) vvs = [new VV(0, -30)]
+    if (!vvs.length) vvs = [new VV(0, -50)]
     for (let vv of [...vvs]) vv.update(dt)
     for (let a of atoms) a.update(dt)
 }
