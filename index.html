@@ -42,6 +42,22 @@ let fri_lerp = (a, b, t, dt) => {
     return lerp(a, b, alpha)
 }
 
+let rvec = (x, y, dx, dy, a) => {
+    let ca = cos(a),  sa = sin(a)
+    return [
+        x + ca * dx - sa * dy,
+        y + sa * dx + ca * dy,
+    ]
+}
+
+let point_onto_line = (x, y, x1, y1, x2, y2) => {
+    let d = dist(x1, y1, x2, y2) || 1
+    let dx = (x2 - x1) / d,  dy = (y2 - y1) / d
+    let p_dx = x - x1,  p_dy = y - y1
+    let f = clamp(dx * p_dx + dy * p_dy, 0, d)
+    return [x1 + dx * f, y1 + dy * f]
+}
+
 let ease = {
     outQuart: t => 1 - pow(1 - t, 4),
     outBounce: t => {
@@ -56,6 +72,7 @@ let ease = {
 }
 
 let cursor = v => document.body.style.cursor = v
+let hand = () => cursor("pointer")
 
 let mouse = {
     x: 0, y: 0,
@@ -244,18 +261,21 @@ let rngc = (r) => {
 let canvas = document.querySelector("canvas")
 let ctx = canvas.getContext("2d")
 
-let line = (x1, y1, x2, y2, strokeStyle) => {
-    ctx.strokeStyle = strokeStyle || ctx.strokeStyle
+let line = (x1, y1, x2, y2, color) => {
+    ctx.strokeStyle = color || ctx.strokeStyle
     ctx.beginPath()
     ctx.moveTo(x1, y1)
     ctx.lineTo(x2, y2)
     ctx.stroke()
 }
 
-let circle = (x, y, r, color = "SteelBlue", mode = "fill") => {
-    ctx.lineWidth = 4
-    if (mode == "fill") ctx.fillStyle = color
-    else ctx.strokeStyle = color
+let circle = (x, y, r, mode = "fill", color) => {
+    if (mode == "fill") {
+        ctx.fillStyle = color || ctx.fillStyle
+    } else {
+        ctx.strokeStyle = color || ctx.strokeStyle
+        ctx.lineWidth = 4
+    }
     ctx.beginPath()
     ctx.ellipse(
         x, y, r, r,
@@ -263,6 +283,15 @@ let circle = (x, y, r, color = "SteelBlue", mode = "fill") => {
     )
     if (mode == "fill") ctx.fill()
     else ctx.stroke()
+}
+
+let polygon = (...pts) => {
+    ctx.beginPath()
+    ctx.moveTo(pts[0], pts[1])
+    for (let i = 2; i < pts.length; i += 2)
+    ctx.lineTo(pts[i], pts[i + 1])
+    ctx.closePath()
+    ctx.fill()
 }
 
 let _mats = []
@@ -385,16 +414,16 @@ class Atom {
         if (my == undefined) my = wmy
         let a = this
         let r = a.r || 25
-        if (a.fill) circle(a.x, a.y, r, a.fill)
-        else circle(a.x, a.y, r, "#122", "line")
+        if (a.fill) circle(a.x, a.y, r, "fill", a.fill)
+        else circle(a.x, a.y, r, "line", "#122")
         if (bonding.includes(a)) {
-            circle(a.x, a.y, r * 1.3, "#122", "line")
+            circle(a.x, a.y, r * 1.3, "line", "#122")
         }
         if (no_hover) return
         if (dist(a.x, a.y, mx, my) < r && !touch_left()) {
-            cursor("pointer")
+            hand()
             ctx.globalAlpha = 0.5
-            circle(a.x, a.y, r, "#444")
+            circle(a.x, a.y, r, "fill", "#444")
             ctx.globalAlpha = 1
         }
     }
@@ -465,6 +494,8 @@ class VV {
         vv.atoms = []
         for (let i = 0; i < 6; i++)
         vv.atoms.push(new Atom())
+        
+        vv.bonds = [0, 1, 1, 0, 1, 1]
     }
 
     update(dt) {
@@ -496,19 +527,76 @@ class VV {
         ctx.rotate(vv.a)
         ctx.scale(vv.s, vv.s)
 
+        let slide_t = (vv.open
+            ? ease.outBounce(vv.open_t)
+            : 1 - ease.outBounce(1 - vv.open_t)
+        )
+        let roll_t = 1 - slide_t
         let btn_slide_t = (vv.open
             ? ease.outQuart(vv.open_t)
             : 1 - ease.outQuart(1 - vv.open_t)
         )
         let btn_roll_t = 1 - btn_slide_t
 
+        let m, mx, my
+        if (vv.open && vv.open_t == 1) {
+            let h = tan(pi / 3) * 200
+            let mid = tan(pi / 6) * 200
+
+            push()
+            ctx.translate(300 * slide_t, 0)
+            ctx.rotate(-pi / 2 * roll_t)
+            ctx.translate(0, -mid)
+            m = ctx.getTransform().inverse()
+            ;({ x: mx, y: my } = m.transformPoint(mouse))
+            let in_ca = dist(mx, my, ...point_onto_line(
+                mx, my, 200, 0, -200, 0
+            )) < 50
+            let in_ab = dist(mx, my, ...point_onto_line(
+                mx, my, -200, 0, 0, h
+            )) < 50
+            let in_bc = dist(mx, my, ...point_onto_line(
+                mx, my, 0, h, 200, 0
+            )) < 50
+            if (in_ca && !in_ab && !in_bc)
+            { vv.bonds[3] = 1 - vv.bonds[3] }
+            if (in_ab && !in_ca && !in_bc)
+            { vv.bonds[4] = 1 - vv.bonds[4] }
+            if (in_bc && !in_ab && !in_ca)
+            { vv.bonds[5] = 1 - vv.bonds[5] }
+            pop()
+
+            push()
+            ctx.translate(-300 * slide_t, 0)
+            ctx.rotate(pi / 2 * roll_t)
+            ctx.translate(0, -mid)
+            m = ctx.getTransform().inverse()
+            ;({ x: mx, y: my } = m.transformPoint(mouse))
+            in_ca = dist(mx, my, ...point_onto_line(
+                mx, my, 200, 0, -200, 0
+            )) < 50
+            in_ab = dist(mx, my, ...point_onto_line(
+                mx, my, -200, 0, 0, h
+            )) < 50
+            in_bc = dist(mx, my, ...point_onto_line(
+                mx, my, 0, h, 200, 0
+            )) < 50
+            if (in_ca && !in_ab && !in_bc)
+            { vv.bonds[0] = 1 - vv.bonds[0] }
+            if (in_ab && !in_ca && !in_bc)
+            { vv.bonds[1] = 1 - vv.bonds[1] }
+            if (in_bc && !in_ab && !in_ca)
+            { vv.bonds[2] = 1 - vv.bonds[2] }
+            pop()
+        }
+
         ctx.translate(0, 120 * btn_slide_t)
         ctx.rotate(-pi * btn_roll_t)
         let s = lerp(1, 1.6, btn_slide_t)
         ctx.scale(s, s)
 
-        let m = ctx.getTransform().inverse()
-        let { x: mx, y: my } = m.transformPoint(mouse)
+        m = ctx.getTransform().inverse()
+        ;({ x: mx, y: my } = m.transformPoint(mouse))
 
         for (let b of Object.values(vv.btns))
         if (dist(b.x, b.y, mx, my) < 25) b.fn()
@@ -543,10 +631,47 @@ class VV {
         ctx.translate(300 * slide_t, 0)
         ctx.rotate(-pi / 2 * roll_t)
         ctx.translate(0, -mid)
+        let m = ctx.getTransform().inverse()
+        let { x: mx, y: my } = m.transformPoint(mouse)
+        let in_ca = dist(mx, my, ...point_onto_line(
+            mx, my, 200, 0, -200, 0
+        )) < 50
+        let in_ab = dist(mx, my, ...point_onto_line(
+            mx, my, -200, 0, 0, h
+        )) < 50
+        let in_bc = dist(mx, my, ...point_onto_line(
+            mx, my, 0, h, 200, 0
+        )) < 50
         ctx.lineWidth = 100
-        line(-200, 0, 200, 0, "#4d3b34")
-        line(-200, 0, 0, h, "#47352f")
-        line(0, h, 200, 0)
+        let bcol = ["#4d3b34", "#47352f"]
+        line(200, 0, -200, 0, bcol[vv.bonds[3]])
+        line(-200, 0, 0, h, bcol[vv.bonds[4]])
+        line(0, h, 200, 0, bcol[vv.bonds[5]])
+        ctx.fillStyle = bcol[1]
+        circle(-200, 0, 50)
+        circle(0, h, 50)
+        circle(200, 0, 50)
+        let pt = rvec(-200, 0, 50, 0, -pi / 6)
+        let d1 = dist(-200, 50, ...pt)
+        let d2 = dist(-200, 0, -200 + d1, 50)
+        polygon(-200, 50, ...pt, -200 + d1, 50)
+        polygon(
+            ...rvec(0, h, 50, 0, -pi / 6),
+            ...rvec(0, h, 50, 0, -5 * pi / 6),
+            0, h - d2,
+        )
+        polygon(200, 50, -pt[0], pt[1], 200 - d1, 50)
+        if (vv.open && vv.open_t == 1 && !touch_left()) {
+            ctx.globalAlpha = 0.2
+            ctx.strokeStyle = "#222"
+            if (in_ca && !in_ab && !in_bc)
+            { hand(),  line(200, 0, -200, 0) }
+            if (in_ab && !in_ca && !in_bc)
+            { hand(),  line(-200, 0, 0, h) }
+            if (in_bc && !in_ab && !in_ca)
+            { hand(),  line(0, h, 200, 0) }
+            ctx.globalAlpha = 1
+        }
 
         if (vv.atoms[3].fill)
         ad.call({ ...vv.atoms[3], x: -200, y: 0, r: 50 }, true)
@@ -560,10 +685,43 @@ class VV {
         ctx.translate(-300 * slide_t, 0)
         ctx.rotate(pi / 2 * roll_t)
         ctx.translate(0, -mid)
+        m = ctx.getTransform().inverse()
+        ;({ x: mx, y: my } = m.transformPoint(mouse))
+        in_ca = dist(mx, my, ...point_onto_line(
+            mx, my, 200, 0, -200, 0
+        )) < 50
+        in_ab = dist(mx, my, ...point_onto_line(
+            mx, my, -200, 0, 0, h
+        )) < 50
+        in_bc = dist(mx, my, ...point_onto_line(
+            mx, my, 0, h, 200, 0
+        )) < 50
         ctx.lineWidth = 100
-        line(-200, 0, 200, 0, "#4d3b34")
-        line(-200, 0, 0, h, "#47352f")
-        line(0, h, 200, 0)
+        line(200, 0, -200, 0, bcol[vv.bonds[0]])
+        line(-200, 0, 0, h, bcol[vv.bonds[1]])
+        line(0, h, 200, 0, bcol[vv.bonds[2]])
+        ctx.fillStyle = bcol[1]
+        circle(-200, 0, 50)
+        circle(0, h, 50)
+        circle(200, 0, 50)
+        polygon(-200, 50, ...pt, -200 + d1, 50)
+        polygon(
+            ...rvec(0, h, 50, 0, -pi / 6),
+            ...rvec(0, h, 50, 0, -5 * pi / 6),
+            0, h - d2,
+        )
+        polygon(200, 50, -pt[0], pt[1], 200 - d1, 50)
+        if (vv.open && vv.open_t == 1 && !touch_left()) {
+            ctx.globalAlpha = 0.2
+            ctx.strokeStyle = "#222"
+            if (in_ca && !in_ab && !in_bc)
+            { hand(),  line(200, 0, -200, 0) }
+            if (in_ab && !in_ca && !in_bc)
+            { hand(),  line(-200, 0, 0, h) }
+            if (in_bc && !in_ab && !in_ca)
+            { hand(),  line(0, h, 200, 0) }
+            ctx.globalAlpha = 1
+        }
 
         if (vv.atoms[0].fill)
         ad.call({ ...vv.atoms[0], x: -200, y: 0, r: 50 }, true)
@@ -578,8 +736,8 @@ class VV {
         let s = lerp(1, 1.6, btn_slide_t)
         ctx.scale(s, s)
 
-        let m = ctx.getTransform().inverse()
-        let { x: mx, y: my } = m.transformPoint(mouse)
+        m = ctx.getTransform().inverse()
+        ;({ x: mx, y: my } = m.transformPoint(mouse))
 
         for (let b of Object.values(vv.btns))
         ad.call(b, false, mx, my)
