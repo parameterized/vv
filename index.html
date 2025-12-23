@@ -342,6 +342,7 @@ class Atom {
 
         a.xv = fri_lerp(a.xv, 0, 0.1, dt)
         a.yv = fri_lerp(a.yv, 0, 0.1, dt)
+        let _x = a.x,  _y = a.y
         a.x += a.xv * dt
         a.y += a.yv * dt
 
@@ -359,6 +360,9 @@ class Atom {
         tdx /= s.size,  tdy /= s.size
         a.x = fri_lerp(a.x, a.x + tdx, 0.5, dt)
         a.y = fri_lerp(a.y, a.y + tdy, 0.5, dt)
+
+        a.xv = fri_lerp(a.xv, (a.x - _x) / dt, 0.3, dt)
+        a.yv = fri_lerp(a.yv, (a.y - _y) / dt, 0.3, dt)
     }
 
     tap() {
