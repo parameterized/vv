@@ -110,7 +110,9 @@ let set_wmouse = () => {
 
 let set_held = obj => {
     held.obj = obj
-    held.start_x = wmx,  held.start_y = wmy
+    held.off_x = wmx - obj.x
+    held.off_y = wmy - obj.y
+    held.start_x = obj.x,  held.start_y = obj.y
     held.moved = false
 }
 
@@ -148,8 +150,8 @@ let ui_release = () => {
 
 let ui_move = (x, y, dx, dy) => {
     mouse.x = x,  mouse.y = y
-    mouse.xv = fri_lerp(mouse.xv, dx / dt, 0.2, dt)
-    mouse.yv = fri_lerp(mouse.yv, dy / dt, 0.2, dt)
+    mouse.xv = fri_lerp(mouse.xv, dx / dt, 0.3, dt)
+    mouse.yv = fri_lerp(mouse.yv, dy / dt, 0.3, dt)
 
     if (held.obj == cam && fingers.size < 2) {
         cam.x -= dx / cam.s
@@ -435,6 +437,12 @@ let add_atom = fill => {
     return a
 }
 
+let hold_new_atom = fill => {
+    let a = add_atom(fill)
+    a.x = wmx,  a.y = wmy
+    set_held(a)
+}
+
 class VV {
     a = 0; s = 1
     alive = true
@@ -464,22 +472,22 @@ class VV {
             x: 65, y: 0, fill: "#bcd",
         },
         red: {
-            fn: () => set_held(add_atom("#a33")),
+            fn: () => hold_new_atom("#a33"),
             x: cos(-2 * pi / 3) * 65, y: sin(-2 * pi / 3) * 65,
             fill: "#a33",
         },
         green: {
-            fn: () => set_held(add_atom("#285")),
+            fn: () => hold_new_atom("#285"),
             x: cos(-pi / 3) * 65, y: sin(-pi / 3) * 65,
             fill: "#285",
         },
         blue: {
-            fn: () => set_held(add_atom("#279")),
+            fn: () => hold_new_atom("#279"),
             x: cos(2 * pi / 3) * 65, y: sin(2 * pi / 3) * 65,
             fill: "#279",
         },
         none: {
-            fn: () => set_held(add_atom()),
+            fn: () => hold_new_atom(),
             x: cos(pi / 3) * 65, y: sin(pi / 3) * 65,
         },
     }
@@ -538,11 +546,11 @@ class VV {
         )
         let btn_roll_t = 1 - btn_slide_t
 
+        let h = tan(pi / 3) * 200
+        let mid = tan(pi / 6) * 200
+
         let m, mx, my
         if (vv.open && vv.open_t == 1) {
-            let h = tan(pi / 3) * 200
-            let mid = tan(pi / 6) * 200
-
             push()
             ctx.translate(300 * slide_t, 0)
             ctx.rotate(-pi / 2 * roll_t)
@@ -598,8 +606,17 @@ class VV {
         m = ctx.getTransform().inverse()
         ;({ x: mx, y: my } = m.transformPoint(mouse))
 
+        let btn_pressed = false
         for (let b of Object.values(vv.btns))
-        if (dist(b.x, b.y, mx, my) < 25) b.fn()
+        if (dist(b.x, b.y, mx, my) < 25)
+        { b.fn(), btn_pressed = true }
+
+        if (!vv.open && !btn_pressed) {
+            m = ctx.getTransform().inverse()
+            ;({ x: mx, y: my } = m.transformPoint(mouse))
+            let cr = h - mid + 50
+            if (dist(mx, my) < cr) set_held(vv)
+        }
 
         pop()
     }
@@ -742,6 +759,19 @@ class VV {
         for (let b of Object.values(vv.btns))
         ad.call(b, false, mx, my)
 
+        if (!vv.open) {
+            m = ctx.getTransform().inverse()
+            ;({ x: mx, y: my } = m.transformPoint(mouse))
+
+            let cr = h - mid + 50
+            if (dist(mx, my) < cr) {
+                hand()
+                ctx.globalAlpha = 0.2
+                circle(0, 0, cr, "fill", "#222")
+                ctx.globalAlpha = 1
+            }
+        }
+
         pop()
     }
 }
@@ -781,7 +811,11 @@ let update = dt => {
     let h = held.obj
     if (h != cam) {
         if (h) {
-            h.x = wmx,  h.y = wmy
+            let _x = h.x,  _y = h.y
+            h.x = wmx - held.off_x,  h.y = wmy - held.off_y
+            h.xv = fri_lerp(h.xv, (h.x - _x) / dt, 0.3, dt)
+            h.yv = fri_lerp(h.yv, (h.y - _y) / dt, 0.3, dt)
+
             let dx = h.x - held.start_x
             let dy = h.y - held.start_y
             if (dist(dx, dy) > 10) held.moved = true
