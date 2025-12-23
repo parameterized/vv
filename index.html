@@ -30,7 +30,7 @@
 <canvas ondragstart="return false"></canvas>
 <script>
 let {
-    min, max, abs, sign, sqrt, pow, exp, sin, cos, tan, atan2
+    min, max, floor, ceil, abs, sign, sqrt, pow, exp, sin, cos, tan, atan2
 } = Math
 let pi = Math.PI
 
@@ -260,6 +260,14 @@ let rngc = (r) => {
     return [r * cos(a), r * sin(a)]
 }
 
+let shuffle = a => {
+    for (let i = a.length - 1; i > 0; i--) {
+        let j = floor(rng(i + 1))
+        ;[a[i], a[j]] = [a[j], a[i]]
+    }
+    return a
+}
+
 let canvas = document.querySelector("canvas")
 let ctx = canvas.getContext("2d")
 
@@ -301,6 +309,7 @@ let push = () => _mats.push(ctx.getTransform())
 let pop = () => ctx.setTransform(_mats.pop())
 
 let bond = (a1, a2) => {
+    if (!atoms.has(a1) || !atoms.has(a2)) return
     let a12 = [a1, a2]
     for (let i = 0; i < 2; i++) {
         bonds.set(a12[i], bonds.get(a12[i]) || new Set())
@@ -321,15 +330,15 @@ class Atom {
     r = 25
     target_dist = 100
 
-    constructor(fill) {
+    constructor(fill, x, y) {
         this.fill = fill
+        if (x != undefined) this.x = x
+        if (y != undefined) this.y = y
     }
 
     rm() {
         let a = this
-        let i = atoms.indexOf(a)
-        if (i < 0) return
-        atoms.splice(i, 1)
+        atoms.delete(a)
         let s = bonds.get(a)
         if (!s) return
         for (let a2 of s) bonds.get(a2).delete(a)
@@ -435,15 +444,9 @@ class Atom {
     }
 }
 
-let add_atom = fill => {
-    let a = new Atom(fill)
-    atoms.push(a)
-    return a
-}
-
 let hold_new_atom = fill => {
-    let a = add_atom(fill)
-    a.x = wmx,  a.y = wmy
+    let a = new Atom(fill, wmx, wmy)
+    atoms.add(a)
     set_held(a)
 }
 
@@ -791,7 +794,7 @@ let init = () => {
     bonding = []
 
     vvs = [new VV(0, -50)]
-    atoms = []
+    atoms = new Set()
     bonds = new Map()
 }
 
@@ -808,9 +811,99 @@ onresize = () => {
 }
 onresize()
 
+let nearby = a => {
+    let d = 2 * a.target_dist
+    let res = new Set()
+    for (let a2 of atoms) {
+        if (a2 == a || dist(a.x, a.y, a2.x, a2.y) > d)
+        { continue }
+        res.add(a2)
+    }
+    return res
+}
+
+let choose_tri = () => {
+    let alist = [...atoms]
+    let a1 = alist[floor(rng(alist.length))]
+
+    let [ox, oy] = rngc(a1.target_dist)
+    let a1_new = new Atom(null, a1.x + ox, a1.y + oy)
+    let opts = new Set([a1_new])
+    opts = opts.union(bonds.get(a1) || new Set())
+    opts = opts.union(nearby(a1))
+    opts = [...opts]
+    let a2 = opts[floor(rng(opts.length))]
+
+    ;[ox, oy] = rngc(a2.target_dist)
+    let a2_new = new Atom(null, a2.x + ox, a2.y + oy)
+    opts = new Set([a2_new])
+    opts = opts.union(bonds.get(a2) || new Set())
+    opts = opts.union(nearby(a2))
+    opts.delete(a1)
+    opts = [...opts]
+    let a3 = opts[floor(rng(opts.length))]
+
+    return shuffle([a1, a2, a3])
+}
+
+let choose_disjoint = tries => {
+    let abcs = [],  used = new Set()
+    for (let i = 0; i < tries; i++) {
+        let abc = choose_tri()
+        let [a, b, c] = abc
+        if (!used.has(a) && !used.has(b) && !used.has(c)) {
+            abcs.push(abc)
+            used.add(a),  used.add(b),  used.add(c)
+        }
+    }
+    return abcs
+}
+
+let rewrite = abcs => {
+    for (let abc of abcs) {
+        let [a, b, c] = abc
+        for (let vv of vvs)
+        if (!vv.open
+            && a.fill == vv.atoms[0].fill
+            && b.fill == vv.atoms[1].fill
+            && c.fill == vv.atoms[2].fill
+            && (1-!bonds.get(c)?.has(a)) == vv.bonds[0]
+            && (1-!bonds.get(a)?.has(b)) == vv.bonds[1]
+            && (1-!bonds.get(b)?.has(c)) == vv.bonds[2]
+        ) {
+            for (let i = 0; i < 3; i++) {
+                let a = abc[i]
+                a.fill = vv.atoms[3 + i].fill
+                if (!a.fill) a.rm()
+            }
+            if (vv.bonds[3] != vv.bonds[0]) bond(c, a)
+            if (vv.bonds[4] != vv.bonds[1]) bond(a, b)
+            if (vv.bonds[5] != vv.bonds[2]) bond(b, c)
+
+            for (let a of abc)
+            if (a.fill && !atoms.has(a))
+            { atoms.add(a) }
+        }
+    }
+}
+
+let step_rate = 100
+let step_timer = 1 / step_rate
+
 let update = dt => {
     mouse.xv = fri_lerp(mouse.xv, 0, 0.3, dt)
     mouse.yv = fri_lerp(mouse.yv, 0, 0.3, dt)
+
+    step_timer -= dt
+    while (step_timer < 0) {
+        let abcs = choose_disjoint(ceil(atoms.size / 3))
+        rewrite(abcs)
+        step_timer += 1 / step_rate
+    }
+
+    if (!vvs.length) vvs = [new VV(0, -50)]
+    for (let vv of [...vvs]) vv.update(dt)
+    for (let a of atoms) a.update(dt)
 
     let h = held.obj
     if (h != cam) {
@@ -830,10 +923,6 @@ let update = dt => {
         cam.x += cam.xv * dt
         cam.y += cam.yv * dt
     }
-
-    if (!vvs.length) vvs = [new VV(0, -50)]
-    for (let vv of [...vvs]) vv.update(dt)
-    for (let a of atoms) a.update(dt)
 }
 
 let draw = () => {
