@@ -349,6 +349,14 @@ class Atom {
         let a = this
         if (a == held.obj) return
 
+        for (let a2 of nearby(a)) {
+            let dx = a.x - a2.x,  dy = a.y - a2.y
+            let d = dist(dx, dy)
+            let f = lerp(1000, 0, min(d / a.target_dist, 1))
+            a.xv += dx / d * f * dt
+            a.yv += dy / d * f * dt
+        }
+
         a.xv = fri_lerp(a.xv, 0, 0.1, dt)
         a.yv = fri_lerp(a.yv, 0, 0.1, dt)
         let _x = a.x,  _y = a.y
