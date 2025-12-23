@@ -42,7 +42,7 @@ let fri_lerp = (a, b, t, dt) => {
     return lerp(a, b, alpha)
 }
 
-let rvec = (x, y, dx, dy, a) => {
+let rotv = (x, y, dx, dy, a) => {
     let ca = cos(a),  sa = sin(a)
     return [
         x + ca * dx - sa * dy,
@@ -124,13 +124,13 @@ let ui_press = (x, y) => {
     for (let a of atoms)
     if (dist(a.x, a.y, wmx, wmy) < 25)
     set_held(a)
-
     if (held.obj) return
 
-    for (let vv of [...vvs])
-    vv.press()
+    for (let i = vvs.length - 1; i >= 0; i--)
+    { vvs[i].press() }
+    if (held.obj) return
 
-    if (!held.obj) set_held(cam)
+    set_held(cam)
 }
 
 let ui_release = () => {
@@ -518,7 +518,88 @@ class VV {
         for (let i = 0; i < 6; i++)
         vv.atoms.push(new Atom())
         
-        vv.bonds = [0, 1, 1, 0, 1, 1]
+        vv.bonds = [
+            { v: 0 }, { v: 1 }, { v: 1 },
+            { v: 0 }, { v: 1 }, { v: 1 },
+        ]
+    }
+
+    pose_bonds() {
+        let vv = this
+        let slide_t = (vv.open
+            ? ease.outBounce(vv.open_t)
+            : 1 - ease.outBounce(1 - vv.open_t)
+        )
+        let roll_t = 1 - slide_t
+        let h = tan(pi / 3) * 200
+        let mid = tan(pi / 6) * 200
+        let lines = [
+            [200, 0, -200, 0],
+            [-200, 0, 0, h],
+            [0, h, 200, 0],
+        ]
+
+        push()
+        ctx.resetTransform()
+        ctx.translate(-300 * slide_t, 0)
+        ctx.rotate(pi / 2 * roll_t)
+        ctx.translate(0, -mid)
+        let m = ctx.getTransform()
+        let x1, y1, x2, y2
+        let b = vv.bonds
+        for (let i = 0; i < 3; i++) {
+            ;({ x: x1, y: y1 } = m.transformPoint({
+                x: lines[i][0], y: lines[i][1]
+            }))
+            ;({ x: x2, y: y2 } = m.transformPoint({
+                x: lines[i][2], y: lines[i][3]
+            }))
+            b[i].line = [x1, y1, x2, y2]
+        }
+        pop()
+
+        push()
+        ctx.resetTransform()
+        ctx.translate(300 * slide_t, 0)
+        ctx.rotate(-pi / 2 * roll_t)
+        ctx.translate(0, -mid)
+        m = ctx.getTransform()
+        for (let i = 0; i < 3; i++) {
+            ;({ x: x1, y: y1 } = m.transformPoint({
+                x: lines[i][0], y: lines[i][1]
+            }))
+            ;({ x: x2, y: y2 } = m.transformPoint({
+                x: lines[i][2], y: lines[i][3]
+            }))
+            b[i + 3].line = [x1, y1, x2, y2]
+        }
+        pop()
+    }
+
+    trs() {
+        let vv = this
+        ctx.translate(vv.x, vv.y)
+        ctx.rotate(vv.a)
+        ctx.scale(vv.s, vv.s)
+    }
+
+    hovered_bonds() {
+        let vv = this
+        push()
+        ctx.resetTransform()
+        vv.trs()
+        let m = ctx.getTransform().inverse()
+        let { x: vmx, y: vmy } = m.transformPoint({
+            x: wmx, y: wmy
+        })
+        let b = vv.bonds
+        let hb = new Set()
+        for (let i = 0; i < 6; i++)
+        if (dist(vmx, vmy, ...point_onto_line(
+            vmx, vmy, ...b[i].line
+        )) < 50) hb.add(b[i])
+        pop()
+        return hb
     }
 
     update(dt) {
@@ -541,252 +622,162 @@ class VV {
             vv.open_t + (vv.open ? 1 : -1) * 2 * dt,
             0, 1
         )
+
+        vv.pose_bonds()
     }
 
-    press() {
+    press_btns() {
         let vv = this
         push()
-        ctx.translate(vv.x, vv.y)
-        ctx.rotate(vv.a)
-        ctx.scale(vv.s, vv.s)
-
-        let slide_t = (vv.open
-            ? ease.outBounce(vv.open_t)
-            : 1 - ease.outBounce(1 - vv.open_t)
-        )
-        let roll_t = 1 - slide_t
+        vv.trs()
         let btn_slide_t = (vv.open
             ? ease.outQuart(vv.open_t)
             : 1 - ease.outQuart(1 - vv.open_t)
         )
         let btn_roll_t = 1 - btn_slide_t
 
-        let h = tan(pi / 3) * 200
-        let mid = tan(pi / 6) * 200
-
-        let m, mx, my
-        if (vv.open && vv.open_t == 1) {
-            push()
-            ctx.translate(300 * slide_t, 0)
-            ctx.rotate(-pi / 2 * roll_t)
-            ctx.translate(0, -mid)
-            m = ctx.getTransform().inverse()
-            ;({ x: mx, y: my } = m.transformPoint(mouse))
-            let in_ca = dist(mx, my, ...point_onto_line(
-                mx, my, 200, 0, -200, 0
-            )) < 50
-            let in_ab = dist(mx, my, ...point_onto_line(
-                mx, my, -200, 0, 0, h
-            )) < 50
-            let in_bc = dist(mx, my, ...point_onto_line(
-                mx, my, 0, h, 200, 0
-            )) < 50
-            if (in_ca && !in_ab && !in_bc)
-            { vv.bonds[3] = 1 - vv.bonds[3] }
-            if (in_ab && !in_ca && !in_bc)
-            { vv.bonds[4] = 1 - vv.bonds[4] }
-            if (in_bc && !in_ab && !in_ca)
-            { vv.bonds[5] = 1 - vv.bonds[5] }
-            pop()
-
-            push()
-            ctx.translate(-300 * slide_t, 0)
-            ctx.rotate(pi / 2 * roll_t)
-            ctx.translate(0, -mid)
-            m = ctx.getTransform().inverse()
-            ;({ x: mx, y: my } = m.transformPoint(mouse))
-            in_ca = dist(mx, my, ...point_onto_line(
-                mx, my, 200, 0, -200, 0
-            )) < 50
-            in_ab = dist(mx, my, ...point_onto_line(
-                mx, my, -200, 0, 0, h
-            )) < 50
-            in_bc = dist(mx, my, ...point_onto_line(
-                mx, my, 0, h, 200, 0
-            )) < 50
-            if (in_ca && !in_ab && !in_bc)
-            { vv.bonds[0] = 1 - vv.bonds[0] }
-            if (in_ab && !in_ca && !in_bc)
-            { vv.bonds[1] = 1 - vv.bonds[1] }
-            if (in_bc && !in_ab && !in_ca)
-            { vv.bonds[2] = 1 - vv.bonds[2] }
-            pop()
-        }
-
         ctx.translate(0, 120 * btn_slide_t)
         ctx.rotate(-pi * btn_roll_t)
         let s = lerp(1, 1.6, btn_slide_t)
         ctx.scale(s, s)
 
-        m = ctx.getTransform().inverse()
-        ;({ x: mx, y: my } = m.transformPoint(mouse))
+        let m = ctx.getTransform().inverse()
+        let { x: mx, y: my } = m.transformPoint(mouse)
 
-        let btn_pressed = false
         for (let b of Object.values(vv.btns))
         if (dist(b.x, b.y, mx, my) < 25)
-        { b.fn(), btn_pressed = true }
+        { set_held({}),  b.fn() }
+        pop()
+    }
 
-        if (!vv.open && !btn_pressed) {
-            m = ctx.getTransform().inverse()
-            ;({ x: mx, y: my } = m.transformPoint(mouse))
-            let cr = h - mid + 50
-            if (dist(mx, my) < cr) set_held(vv)
+    press_move() {
+        let vv = this
+        if (vv.open) return
+        push()
+        vv.trs()
+
+        let h = tan(pi / 3) * 200
+        let mid = tan(pi / 6) * 200
+        let cr = h - mid + 50
+
+        let m = ctx.getTransform().inverse()
+        let { x: mx, y: my } = m.transformPoint(mouse)
+        if (dist(mx, my) < cr) set_held(vv)
+        pop()
+    }
+
+    press_bond() {
+        let vv = this
+        if (!vv.open || vv.open_t < 1 || touch_left())
+        { return }
+
+        let b = vv.bonds
+        let hb = vv.hovered_bonds()
+        for (let i = 0; i < 3; i++)
+        for (let k = 0; k <= 3; k += 3)
+        if (hb.has(b[k + i])
+            && !hb.has(b[k + (i + 1) % 3])
+            && !hb.has(b[k + (i + 2) % 3])
+        ) {
+            set_held({})
+            b[k + i].v = 1 - b[k + i].v
+        }
+    }
+
+    press() {
+        let vv = this
+        if (!held.obj) vv.press_btns()
+        if (!held.obj) vv.press_move()
+        if (!held.obj) vv.press_bond()
+    }
+
+    draw_v(vi) {
+        let vv = this
+        let b = vv.bonds
+        let bcol = ["#4d3b34", "#47352f"]
+        ctx.lineWidth = 100
+        for (let i = 0; i < 3; i++) {
+            let j = i + 3 * vi
+            line(...b[j].line, bcol[b[j].v])
         }
 
-        pop()
+        ctx.fillStyle = bcol[1]
+        let next = { 0: 1, 1: 2, 2: 0, 3: 4, 4: 5, 5: 3 }
+        for (let i = 0; i < 3; i++) {
+            let j = i + 3 * vi
+            let xy = b[j].line.slice(0, 2)
+            let [x, y] = xy
+            circle(...xy, 50)
+            let xy2 = b[next[j]].line.slice(0, 2)
+            let a = atan2(xy2[1] - y, xy2[0] - x)
+            let p1 = rotv(...xy, 50, 0, a + pi / 6)
+            let p2 = rotv(...xy, 50, 0, a - pi / 2)
+            let dx = p2[0] - p1[0],  dy = p2[1] - p1[1]
+            let p3 = rotv(...p1, dx, dy, pi / 3)
+            polygon(...p1, ...p2, ...p3)
+        }
+
+        let hb = vv.hovered_bonds()
+        if (vv.open && vv.open_t == 1 && !touch_left()) {
+            ctx.globalAlpha = 0.2
+            ctx.strokeStyle = "#222"
+            for (let i = 0; i < 3; i++) {
+                let j = i + 3 * vi
+                if (hb.has(b[j])
+                    && !hb.has(b[3 * vi + (i + 1) % 3])
+                    && !hb.has(b[3 * vi + (i + 2) % 3])
+                ) { hand(),  line(...b[j].line) }
+            }
+            ctx.globalAlpha = 1
+        }
+
+        let ad = Atom.prototype.draw
+        for (let i = 0; i < 3; i++) {
+            let j = i + 3 * vi
+            if (vv.atoms[j].fill) {
+                let [x, y] = b[j].line.slice(2)
+                ad.call({ ...vv.atoms[j], x, y, r: 50 }, true)
+            }
+        }
     }
 
     draw() {
         let vv = this
         push()
-        ctx.translate(vv.x, vv.y)
-        ctx.rotate(vv.a)
-        ctx.scale(vv.s, vv.s)
+        vv.trs()
 
-        let slide_t = (vv.open
-            ? ease.outBounce(vv.open_t)
-            : 1 - ease.outBounce(1 - vv.open_t)
-        )
-        let roll_t = 1 - slide_t
+        vv.draw_v(1)
+        vv.draw_v(0)
+
         let btn_slide_t = (vv.open
             ? ease.outQuart(vv.open_t)
             : 1 - ease.outQuart(1 - vv.open_t)
         )
         let btn_roll_t = 1 - btn_slide_t
 
-        let h = tan(pi / 3) * 200
-        let mid = tan(pi / 6) * 200
-
-        let ad = Atom.prototype.draw
-
-        push()
-        ctx.translate(300 * slide_t, 0)
-        ctx.rotate(-pi / 2 * roll_t)
-        ctx.translate(0, -mid)
-        let m = ctx.getTransform().inverse()
-        let { x: mx, y: my } = m.transformPoint(mouse)
-        let in_ca = dist(mx, my, ...point_onto_line(
-            mx, my, 200, 0, -200, 0
-        )) < 50
-        let in_ab = dist(mx, my, ...point_onto_line(
-            mx, my, -200, 0, 0, h
-        )) < 50
-        let in_bc = dist(mx, my, ...point_onto_line(
-            mx, my, 0, h, 200, 0
-        )) < 50
-        ctx.lineWidth = 100
-        let bcol = ["#4d3b34", "#47352f"]
-        line(200, 0, -200, 0, bcol[vv.bonds[3]])
-        line(-200, 0, 0, h, bcol[vv.bonds[4]])
-        line(0, h, 200, 0, bcol[vv.bonds[5]])
-        ctx.fillStyle = bcol[1]
-        circle(-200, 0, 50)
-        circle(0, h, 50)
-        circle(200, 0, 50)
-        let pt = rvec(-200, 0, 50, 0, -pi / 6)
-        let d1 = dist(-200, 50, ...pt)
-        let d2 = dist(-200, 0, -200 + d1, 50)
-        polygon(-200, 50, ...pt, -200 + d1, 50)
-        polygon(
-            ...rvec(0, h, 50, 0, -pi / 6),
-            ...rvec(0, h, 50, 0, -5 * pi / 6),
-            0, h - d2,
-        )
-        polygon(200, 50, -pt[0], pt[1], 200 - d1, 50)
-        if (vv.open && vv.open_t == 1 && !touch_left()) {
-            ctx.globalAlpha = 0.2
-            ctx.strokeStyle = "#222"
-            if (in_ca && !in_ab && !in_bc)
-            { hand(),  line(200, 0, -200, 0) }
-            if (in_ab && !in_ca && !in_bc)
-            { hand(),  line(-200, 0, 0, h) }
-            if (in_bc && !in_ab && !in_ca)
-            { hand(),  line(0, h, 200, 0) }
-            ctx.globalAlpha = 1
-        }
-
-        if (vv.atoms[3].fill)
-        ad.call({ ...vv.atoms[3], x: -200, y: 0, r: 50 }, true)
-        if (vv.atoms[4].fill)
-        ad.call({ ...vv.atoms[4], x: 0, y: h, r: 50 }, true)
-        if (vv.atoms[5].fill)
-        ad.call({ ...vv.atoms[5], x: 200, y: 0, r: 50 }, true)
-        pop()
-
-        push()
-        ctx.translate(-300 * slide_t, 0)
-        ctx.rotate(pi / 2 * roll_t)
-        ctx.translate(0, -mid)
-        m = ctx.getTransform().inverse()
-        ;({ x: mx, y: my } = m.transformPoint(mouse))
-        in_ca = dist(mx, my, ...point_onto_line(
-            mx, my, 200, 0, -200, 0
-        )) < 50
-        in_ab = dist(mx, my, ...point_onto_line(
-            mx, my, -200, 0, 0, h
-        )) < 50
-        in_bc = dist(mx, my, ...point_onto_line(
-            mx, my, 0, h, 200, 0
-        )) < 50
-        ctx.lineWidth = 100
-        line(200, 0, -200, 0, bcol[vv.bonds[0]])
-        line(-200, 0, 0, h, bcol[vv.bonds[1]])
-        line(0, h, 200, 0, bcol[vv.bonds[2]])
-        ctx.fillStyle = bcol[1]
-        circle(-200, 0, 50)
-        circle(0, h, 50)
-        circle(200, 0, 50)
-        polygon(-200, 50, ...pt, -200 + d1, 50)
-        polygon(
-            ...rvec(0, h, 50, 0, -pi / 6),
-            ...rvec(0, h, 50, 0, -5 * pi / 6),
-            0, h - d2,
-        )
-        polygon(200, 50, -pt[0], pt[1], 200 - d1, 50)
-        if (vv.open && vv.open_t == 1 && !touch_left()) {
-            ctx.globalAlpha = 0.2
-            ctx.strokeStyle = "#222"
-            if (in_ca && !in_ab && !in_bc)
-            { hand(),  line(200, 0, -200, 0) }
-            if (in_ab && !in_ca && !in_bc)
-            { hand(),  line(-200, 0, 0, h) }
-            if (in_bc && !in_ab && !in_ca)
-            { hand(),  line(0, h, 200, 0) }
-            ctx.globalAlpha = 1
-        }
-
-        if (vv.atoms[0].fill)
-        ad.call({ ...vv.atoms[0], x: -200, y: 0, r: 50 }, true)
-        if (vv.atoms[1].fill)
-        ad.call({ ...vv.atoms[1], x: 0, y: h, r: 50 }, true)
-        if (vv.atoms[2].fill)
-        ad.call({ ...vv.atoms[2], x: 200, y: 0, r: 50 }, true)
-        pop()
-
         ctx.translate(0, 120 * btn_slide_t)
         ctx.rotate(-pi * btn_roll_t)
         let s = lerp(1, 1.6, btn_slide_t)
         ctx.scale(s, s)
 
-        m = ctx.getTransform().inverse()
-        ;({ x: mx, y: my } = m.transformPoint(mouse))
+        let m = ctx.getTransform().inverse()
+        let { x: mx, y: my } = m.transformPoint(mouse)
 
+        let ad = Atom.prototype.draw
         for (let b of Object.values(vv.btns))
         ad.call(b, false, mx, my)
 
         if (!vv.open) {
-            m = ctx.getTransform().inverse()
-            ;({ x: mx, y: my } = m.transformPoint(mouse))
-
+            let h = tan(pi / 3) * 200
+            let mid = tan(pi / 6) * 200
             let cr = h - mid + 50
-            if (dist(mx, my) < cr) {
+            if (dist(mx, my) < cr || held.obj == vv) {
                 hand()
                 ctx.globalAlpha = 0.2
                 circle(0, 0, cr, "fill", "#222")
                 ctx.globalAlpha = 1
             }
         }
-
         pop()
     }
 }
@@ -875,9 +866,9 @@ let rewrite = abcs => {
             && a.fill == vv.atoms[0].fill
             && b.fill == vv.atoms[1].fill
             && c.fill == vv.atoms[2].fill
-            && (1-!bonds.get(c)?.has(a)) == vv.bonds[0]
-            && (1-!bonds.get(a)?.has(b)) == vv.bonds[1]
-            && (1-!bonds.get(b)?.has(c)) == vv.bonds[2]
+            && (1-!bonds.get(c)?.has(a)) == vv.bonds[0].v
+            && (1-!bonds.get(a)?.has(b)) == vv.bonds[1].v
+            && (1-!bonds.get(b)?.has(c)) == vv.bonds[2].v
         ) {
             for (let i = 0; i < 3; i++) {
                 let a = abc[i]
@@ -887,9 +878,9 @@ let rewrite = abcs => {
             for (let a of abc)
             if (a.fill) atoms.add(a)
 
-            if (vv.bonds[3] != vv.bonds[0]) bond(c, a)
-            if (vv.bonds[4] != vv.bonds[1]) bond(a, b)
-            if (vv.bonds[5] != vv.bonds[2]) bond(b, c)
+            if (vv.bonds[3].v != vv.bonds[0].v) bond(c, a)
+            if (vv.bonds[4].v != vv.bonds[1].v) bond(a, b)
+            if (vv.bonds[5].v != vv.bonds[2].v) bond(b, c)
         }
     }
 }
