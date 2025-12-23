@@ -884,13 +884,12 @@ let rewrite = abcs => {
                 a.fill = vv.atoms[3 + i].fill
                 if (!a.fill) a.rm()
             }
+            for (let a of abc)
+            if (a.fill) atoms.add(a)
+
             if (vv.bonds[3] != vv.bonds[0]) bond(c, a)
             if (vv.bonds[4] != vv.bonds[1]) bond(a, b)
             if (vv.bonds[5] != vv.bonds[2]) bond(b, c)
-
-            for (let a of abc)
-            if (a.fill && !atoms.has(a))
-            { atoms.add(a) }
         }
     }
 }
