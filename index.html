@@ -58,6 +58,16 @@ let point_onto_line = (x, y, x1, y1, x2, y2) => {
     return [x1 + dx * f, y1 + dy * f]
 }
 
+let tri_isect = (x, y, x1, y1, x2, y2, x3, y3) => {
+  return ((
+        (y2 - y1) * (x - x1) - (x2 - x1) * (y - y1)
+    ) | (
+        (y3 - y2) * (x - x2) - (x3 - x2) * (y - y2)
+    ) | (
+        (y1 - y3) * (x - x3) - (x1 - x3) * (y - y3)
+    )) >= 0
+}
+
 let ease = {
     outQuart: t => 1 - pow(1 - t, 4),
     outBounce: t => {
@@ -652,7 +662,6 @@ class VV {
 
     press_move() {
         let vv = this
-        if (vv.open) return
         push()
         vv.trs()
 
@@ -662,13 +671,30 @@ class VV {
 
         let m = ctx.getTransform().inverse()
         let { x: mx, y: my } = m.transformPoint(mouse)
-        if (dist(mx, my) < cr) set_held(vv)
+
+        if (!vv.open && dist(mx, my) < cr)
+        { set_held(vv) }
+
+        let b = vv.bonds
+        let hb = vv.hovered_bonds()
+        for (let k = 0; k <= 3; k += 3) {
+            let tri = [
+                ...b[k].line.slice(2),
+                ...b[k + 1].line.slice(2),
+                ...b[k + 2].line.slice(2),
+            ]
+            if (tri_isect(mx, my, ...tri)
+                && !hb.has(b[k])
+                && !hb.has(b[k + 1])
+                && !hb.has(b[k + 2])
+            ) { set_held(vv) }
+        }
         pop()
     }
 
     press_bond() {
         let vv = this
-        if (!vv.open || vv.open_t < 1 || touch_left())
+        if (!vv.open || vv.open_t < 1)
         { return }
 
         let b = vv.bonds
@@ -694,7 +720,31 @@ class VV {
     draw_v(vi) {
         let vv = this
         let b = vv.bonds
+        let hb = vv.hovered_bonds()
         let bcol = ["#4d3b34", "#47352f"]
+
+        push()
+        ctx.resetTransform()
+        vv.trs()
+        let m = ctx.getTransform().inverse()
+        let { x: vmx, y: vmy } = m.transformPoint({
+            x: wmx, y: wmy
+        })
+        pop()
+
+        ctx.fillStyle = bcol[0]
+        let tri = [
+            ...b[3 * vi].line.slice(2),
+            ...b[3 * vi + 1].line.slice(2),
+            ...b[3 * vi + 2].line.slice(2),
+        ]
+        if (vv.open && !touch_left()
+            && tri_isect(vmx, vmy, ...tri)
+            && !hb.has(b[3 * vi])
+            && !hb.has(b[3 * vi + 1])
+            && !hb.has(b[3 * vi + 2])
+        ) { hand(),  polygon(...tri, "#222") }
+
         ctx.lineWidth = 100
         for (let i = 0; i < 3; i++) {
             let j = i + 3 * vi
@@ -717,10 +767,9 @@ class VV {
             polygon(...p1, ...p2, ...p3)
         }
 
-        let hb = vv.hovered_bonds()
+        ctx.globalAlpha = 0.2
+        ctx.strokeStyle = "#222"
         if (vv.open && vv.open_t == 1 && !touch_left()) {
-            ctx.globalAlpha = 0.2
-            ctx.strokeStyle = "#222"
             for (let i = 0; i < 3; i++) {
                 let j = i + 3 * vi
                 if (hb.has(b[j])
@@ -728,8 +777,8 @@ class VV {
                     && !hb.has(b[3 * vi + (i + 2) % 3])
                 ) { hand(),  line(...b[j].line) }
             }
-            ctx.globalAlpha = 1
         }
+        ctx.globalAlpha = 1
 
         let ad = Atom.prototype.draw
         for (let i = 0; i < 3; i++) {
@@ -767,7 +816,7 @@ class VV {
         for (let b of Object.values(vv.btns))
         ad.call(b, false, mx, my)
 
-        if (!vv.open) {
+        if (!vv.open && !touch_left()) {
             let h = tan(pi / 3) * 200
             let mid = tan(pi / 6) * 200
             let cr = h - mid + 50
