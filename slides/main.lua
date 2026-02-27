@@ -129,6 +129,20 @@ local function add_slide(o)
     end
 end
 
+local function read_file(path)
+    local xhr = js.new(window.XMLHttpRequest)
+    xhr:open("GET", path, false)
+    xhr:send()
+    local ok = (
+        xhr.status >= 200 and xhr.status < 300
+    ) or xhr.status == 304
+    assert(ok,
+        "read_file failed for " .. path
+        .. " (status " .. tostring(xhr.status) .. ")"
+    )
+    return xhr.responseText
+end
+
 
 add_slide {
     code_hidden = [[
@@ -146,52 +160,7 @@ add_slide {
     pre = [[
 code
     ]],
-    code = [[
-local delta = {
-    [0] = {
-        A = {1, "R", "B"},
-        B = {0, "R", "C"},
-        C = {1, "L", "C"},
-    },
-    [1] = {
-        A = {1, "L", "H"},
-        B = {1, "R", "B"},
-        C = {1, "L", "A"},
-    },
-}
-
-local tape, state, pos = {}, "A", 0
-local y = 20
-
-local function show()
-    local s = ""
-    for i=-2, 5 do
-        s = s .. (
-            tostring(tape[i] or 0)
-            .. (i == pos and state or " ")
-        )
-        if i < 5 then s = s .. " " end
-    end
-    draw_text(s, 100, y)
-    y = y + 24
-end
-
-local function step()
-    show()
-    if state == "H" then return end
-
-    local sym = tape[pos] or 0
-    local d
-    tape[pos], d, state = table.unpack(
-        delta[sym][state]
-    )
-    pos = pos + ({L=-1, R=1})[d]
-    window:setTimeout(step, 100)
-end
-
-clear()
-step()
-    ]],
+    code = read_file("demo_code/tm.lua"),
 }
 
 add_slide {}
