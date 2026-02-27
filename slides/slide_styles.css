@@ -1,0 +1,49 @@
+* { box-sizing: border-box; }
+.hidden{ visibility: hidden; background-color: #888; }
+body {
+    margin: 0;
+    overflow-x: hidden;
+    background-color: #eef1e5;
+    font-family: "Katex_Main";
+}
+.katex { font-size: 1em; }
+.slides { transform-origin: left top; }
+x-slide {
+    width: 1600px; height: 900px;
+    position: relative;
+    display: block;
+    font-size: 30px;
+}
+x-slide:nth-child(2n) {
+    background-color: #e7e9de;
+}
+x-slide h1 {
+    position: absolute; left: 100px; top: 70px;
+    font-size: 50px; font-weight: normal; color: #50b4c8;
+}
+x-slide > pre {
+    position: absolute; left: 100px; top: 220px;
+    font-family: "Katex_Main"; color: #262626;
+    line-height: 1.4em;
+}
+x-slide > button {
+    position: absolute; left: 100px; top: 220px;
+    font-size: 30px; font-family: "Katex_Main"; color: #262626;
+    background-color: #e9e9e9;
+    border: 1px solid #ccc;
+    border-radius: .5rem;
+    box-sizing: border-box;
+    line-height: 1.25rem;
+    padding: .75rem 1rem;
+    cursor: pointer;
+}
+x-slide > button:hover { background-color: #ddd; }
+x-slide > button:focus { outline: 2px solid #ccc; }
+.placeholder {
+    background-color: #0001;
+    font-size: 30px;
+    text-align: center;
+    align-content: center;
+}
+x-diagram div, x-diagram img { position: absolute; }
+x-diagram a { color: #262626; }

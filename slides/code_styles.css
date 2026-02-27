@@ -1,0 +1,104 @@
+h1 { margin-top: 0; }
+h2 {
+    padding: 20px 0;
+    border-bottom: #edd4b2 1px solid;
+}
+hr { border-color: #edd4b2; }
+
+a { color: #d27856; }
+a:hover {
+    background: #d27856;
+    outline: 2px solid #d27856;
+    color: black;
+}
+
+details {
+    color: #edd4b2;
+    font-family: sans-serif;
+    background: #47352f;
+    width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+details summary { font-size: 0.8em; }
+details .code-div {
+    margin-bottom: 0;
+    width: 100%;
+}
+details .code-toolbar { width: calc(100% - 280px); }
+details .code-div textarea { width: calc(100% - 280px); }
+details canvas { cursor: initial; }
+
+
+span.inline-color-wrapper { display: none; }
+
+.code-div {
+    font-family: sans-serif;
+    position: relative;
+    width: 1000px;
+    margin: 0.5em auto;
+    display: flex;
+}
+.code-toolbar {
+    width: calc(100% - 300px);
+    height: inherit;
+}
+div.code-toolbar > .toolbar { top: -5px; }
+.toolbar-item { margin: 0 3px; }
+.toolbar, .toolbar-item { pointer-events: none; }
+.toolbar-item button { pointer-events: all; }
+.toolbar-item button:hover { cursor: pointer; }
+div.code-toolbar > .toolbar > .toolbar-item > button {
+    font-size: 0.7em;
+}
+
+.code-div textarea, pre[class*="language-"] {
+    margin: 0;
+    padding: .5em;
+    padding-top: 1.4em;
+    white-space: pre-wrap;
+    word-wrap: normal;
+    font-family: monospace;
+    font-size: 14pt;
+    line-height: 1.4;
+    tab-size: 4;
+}
+
+code[class*="language-"] {
+    display: block;
+    scrollbar-width: none;
+    white-space: pre-wrap;
+    font-family: monospace;
+    font-size: 14pt;
+    line-height: 1.4;
+}
+
+.code-div textarea {
+    z-index: 1;
+    position: absolute;
+    top: 0; left: 0;
+    border: 0;
+    width: calc(100% - 300px);
+    height: 100%;
+    overflow: auto;
+
+    color: transparent;
+    background: transparent;
+    caret-color: white;
+    resize: none;
+}
+
+pre[class*="language-"] {
+    z-index: 0;
+    height: 100%;
+    scrollbar-width: none;
+}
+
+.line-numbers pre[class*="language-"],
+pre[class*="language-"].line-numbers { padding-left: 3.5em; }
+.line-numbers .code-div textarea,
+.code-div.line-numbers textarea { padding-left: 3.5em; }
+
+textarea:hover + div > .toolbar { opacity: 1; }

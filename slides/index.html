@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>vv slides</title>
+<link rel="shortcut icon" href='data:image/svg+xml,
+    <svg xmlns=%22http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <text y="1.1em" font-size="75">🌱️</text></svg>'>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+
+<link rel="stylesheet" href="lib/katex.css">
+<link rel="stylesheet" href="lib/prism.css">
+<link rel="stylesheet" href="slide_styles.css">
+<link rel="stylesheet" href="code_styles.css">
+
+<script defer src="lib/fengari-web.js"></script>
+<script defer src="lib/katex.js"></script>
+<script defer src="lib/auto-render.js"></script>
+<script defer src="lib/prism.js"></script>
+
+<script defer src="main.lua" type="application/lua"></script>
+<script defer src="load_editors.js"></script>
+<script>document.documentElement.classList.add("hidden")</script>
+</head>
+
+<body class="lang-js line-numbers"
+    data-prismjs-copy="copy"
+    data-prismjs-copy-success="copied"
+    data-prismjs-copy-timeout="3000"
+    data-toolbar-order="reset,copy-to-clipboard,run">
+
+<div class="slides">
+
+<x-slide>
+<div style="
+    display: flex; position: absolute; z-index: -10;
+    width: 100%; height: 900px;">
+    <div style="width: 6.75%; background-color: #333b45;"></div>
+    <div style="width: 31.5%; background-color: #4c5967;"></div>
+    <div style="width: 61.75%; background-color: #657689;"></div>
+</div>
+
+<div id="title" style="
+    position: absolute; left: 700px; top: 400px; width: 600px;
+    font-size: 60px; color: #fff;">
+title</div>
+
+$
+\gdef\tb#1{\textcolor{0070c0}{#1}}
+\gdef\tr#1{\textcolor{ff0000}{#1}}
+\gdef\tg#1{\textcolor{00a050}{#1}}
+\gdef\tm#1{\textcolor{cc0099}{#1}}
+\gdef\tp#1{\textcolor{7030a0}{#1}}
+\gdef\ora#1{\overrightarrow{#1}}
+$
+</x-slide>
+
+</div> <!-- /slides -->
+</body>
+</html>
