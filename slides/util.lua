@@ -15,3 +15,8 @@ end
 function js_arr(...)
     return js.new(window.Array, ...)
 end
+
+
+function trim(s)
+    return s:match("^[%s\r\n\t]*(.-)[%s\r\n\t]*$")
+end

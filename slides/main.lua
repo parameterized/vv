@@ -1,6 +1,7 @@
 package.path = "./?.lua"
 
 require "util"
+require "load_editors"
 
 local scale = 1
 function window:onresize()
@@ -18,7 +19,7 @@ function window:onresize()
     ) .. "px"
 
     window:scroll(0, new_scroll)
-    window:fix_line_numbers()
+    fix_line_numbers()
 end
 
 local function init()
@@ -35,7 +36,7 @@ local function init()
         output = "html",
     })
 
-    window:load_editors()
+    load_editors()
 
     local _scroll = window.scrollY
     window:onresize()
@@ -87,14 +88,19 @@ local function add_slide(o)
     slides:append(slide)
 
     local h1 = document:createElement("h1")
-    h1.innerHTML = o.h1
     slide:append(h1)
-    slide.innerHTML = slide.innerHTML .. (o.body or "")
+    h1.innerHTML = o.h1 or ""
+
+    local pre = document:createElement("pre")
+    slide:append(pre)
+    pre.innerHTML = o.pre or ""
+    pre.style.left = "100px"
+    pre.style.top = "180px"
 
     local function new_code_div(src)
         local code_div = document:createElement("div")
         code_div.className = "code-div"
-        code_div.style.height = "300px"
+        code_div.style.height = "400px"
         code_div:append(document:createElement("textarea"))
         local script = document:createElement("script")
         script.type = "text/plain"
@@ -104,18 +110,18 @@ local function add_slide(o)
     end
 
     local spacer = document:createElement("div")
-    spacer.style.height = "300px"
     slide:append(spacer)
+    spacer.style.height = "400px"
 
     if o.code_hidden then
-        spacer.style.height = "150px"
+        spacer.style.height = o.code and "60px" or "240px"
         local details = document:createElement("details")
         local summary = document:createElement("summary")
-        summary.innerHTML = "ignore this part"
         details:append(summary)
+        summary.innerHTML = "ignore this part"
         local code_div = new_code_div(o.code_hidden)
-        code_div.style.height = "280px"
         details:append(code_div)
+        code_div.style.height = "300px"
         slide:append(details)
     end
     if o.code then
@@ -123,131 +129,71 @@ local function add_slide(o)
     end
 end
 
+
+add_slide {
+    code_hidden = [[
+function draw_text(s, x, y)
+    ctx.font = "20px sans-serif"
+    ctx.textBaseline = "top"
+    ctx.fillStyle = "#ddd"
+    ctx:fillText(s, x, y)
+end
+    ]],
+}
+
 add_slide {
     h1 = "code",
-    code_hidden = [[
-dist = (x1, y1, x2, y2) => Math.sqrt(
-    (x2 - x1)**2 + (y2 - y1)**2
-)
-lerp = (a, b, t) => a * (1 - t) + b * t
-
-draw_cell = ({x=150, y=150, angle=0, n_ports=1, label="?"}) => {
-    const _mat = ctx.getTransform()
-    ctx.translate(x, y)
-    ctx.rotate(angle)
-
-    ctx.font = "32px sans-serif"
-    ctx.textAlign = "center"
-    ctx.textBaseline = "middle"
-
-    ctx.strokeStyle = "#ddd"
-    ctx.lineCap = "round"
-    ctx.lineJoin = "round"
-    ctx.lineWidth = 2
-
-    ctx.fillStyle = "SteelBlue"
-
-    if (n_ports === 1) {
-        // circle
-        ctx.beginPath()
-        ctx.arc(-30, 0, 30, 0, Math.PI * 2)
-        ctx.fill()
-        ctx.stroke()
-
-        ctx.fillStyle = "#222"
-        ctx.translate(-30, 0)
-        ctx.rotate(-angle)
-        ctx.fillText(label, 0, 0)
-    } else {
-        // triangle
-        ctx.beginPath()
-        ctx.moveTo(0, 0)
-        ctx.lineTo(-60, 50)
-        ctx.lineTo(-60, -50)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-
-        ctx.fillStyle = "#222"
-        ctx.translate(-40, 0)
-        ctx.rotate(-angle)
-        ctx.fillText(label, 0, 0)
-    }
-
-    ctx.setTransform(_mat)
-}
-
-draw_wire = wire => {
-    const p1 = wire[0]
-    const p2 = wire[1]
-    let a1 = p1.angle
-    let a2 = p2.angle
-
-    ctx.beginPath()
-    ctx.moveTo(p1.x, p1.y)
-    const d = dist(p1.x, p1.y, p2.x, p2.y)
-    const curve_d = Math.min(d / 2, 100)
-    ctx.bezierCurveTo(
-        p1.x + Math.cos(a1) * curve_d,
-        p1.y + Math.sin(a1) * curve_d,
-        p2.x + Math.cos(a2) * curve_d,
-        p2.y + Math.sin(a2) * curve_d,
-        p2.x, p2.y
-    )
-    ctx.stroke()
-}
-
-draw_cell({x:100, y:100, label:"a"})
-draw_cell({x:200, y:100, n_ports:2, label:"b"})
-draw_cell({})
-draw_wire([{x: 100, y: 100, angle: -1}, {x: 140, y: 100, angle: 3}])
-
-draw_circle = (x, y) => {
-    if (x === undefined) x = rng(100, 200)
-    if (y === undefined) y = rng(100, 200)
-    ctx.fillStyle = "SteelBlue"
-    ctx.beginPath()
-    ctx.ellipse(
-        x, y, 20, 20,
-        0, 0, Math.PI * 2
-    )
-    ctx.fill()
-}
+    pre = [[
+code
     ]],
     code = [[
-cells = [
-    {x:100, y:100, angle:-1, n_ports:1, label:"a"},
-    {x:200, y:100, angle:0, n_ports:2, label:"b"},
-]
-wires = [
-    [cells[0], {x: 140, y: 100, angle: 3}],
-]
+local delta = {
+    [0] = {
+        A = {1, "R", "B"},
+        B = {0, "R", "C"},
+        C = {1, "L", "C"},
+    },
+    [1] = {
+        A = {1, "L", "H"},
+        B = {1, "R", "B"},
+        C = {1, "L", "A"},
+    },
+}
 
-for (c of cells) draw_cell(c)
-for (w of wires) draw_wire(w)
+local tape, state, pos = {}, "A", 0
+local y = 20
+
+local function show()
+    local s = ""
+    for i=-2, 5 do
+        s = s .. (
+            tostring(tape[i] or 0)
+            .. (i == pos and state or " ")
+        )
+        if i < 5 then s = s .. " " end
+    end
+    draw_text(s, 100, y)
+    y = y + 24
+end
+
+local function step()
+    show()
+    if state == "H" then return end
+
+    local sym = tape[pos] or 0
+    local d
+    tape[pos], d, state = table.unpack(
+        delta[sym][state]
+    )
+    pos = pos + ({L=-1, R=1})[d]
+    window:setTimeout(step, 100)
+end
+
+clear()
+step()
     ]],
 }
 
-add_slide {
-    h1 = "more",
-    code = [[
-loop = dt => {
-    clear()
-    if (mx > 0 && my > 0 && mx < 300 && my < 300) {
-        tx = mx; ty = my
-    } else {
-        tx = 100; ty = 100
-    }
-    cells[0].x = lerp(
-        cells[0].x, tx, 1 - Math.exp(-6 * dt)
-    )
-    cells[0].y = lerp(
-        cells[0].y, ty, 1 - Math.exp(-6 * dt)
-    )
-    for (c of cells) draw_cell(c)
-    for (w of wires) draw_wire(w)
-}
-    ]],
-}
+add_slide {}
 
 init()

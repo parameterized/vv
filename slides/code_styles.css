@@ -16,7 +16,7 @@ details {
     color: #edd4b2;
     font-family: sans-serif;
     background: #47352f;
-    width: 1000px;
+    width: 1100px;
     margin: 0 auto;
     padding: 20px;
     border-radius: 10px;
@@ -27,8 +27,8 @@ details .code-div {
     margin-bottom: 0;
     width: 100%;
 }
-details .code-toolbar { width: calc(100% - 280px); }
-details .code-div textarea { width: calc(100% - 280px); }
+details .code-toolbar { width: calc(100% - 300px); }
+details .code-div textarea { width: calc(100% - 300px); }
 details canvas { cursor: initial; }
 
 
@@ -37,12 +37,12 @@ span.inline-color-wrapper { display: none; }
 .code-div {
     font-family: sans-serif;
     position: relative;
-    width: 1000px;
+    width: 1100px;
     margin: 0.5em auto;
     display: flex;
 }
 .code-toolbar {
-    width: calc(100% - 300px);
+    width: calc(100% - 400px);
     height: inherit;
 }
 div.code-toolbar > .toolbar { top: -5px; }
@@ -57,7 +57,7 @@ div.code-toolbar > .toolbar > .toolbar-item > button {
 .code-div textarea, pre[class*="language-"] {
     margin: 0;
     padding: .5em;
-    padding-top: 1.4em;
+    padding-top: 1.6em;
     white-space: pre-wrap;
     word-wrap: normal;
     font-family: monospace;
@@ -80,7 +80,7 @@ code[class*="language-"] {
     position: absolute;
     top: 0; left: 0;
     border: 0;
-    width: calc(100% - 300px);
+    width: calc(100% - 400px);
     height: 100%;
     overflow: auto;
 
