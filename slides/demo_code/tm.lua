@@ -27,17 +27,21 @@ local function show()
     y = y + 24
 end
 
+local _ctx = ctx
 local function step()
     show()
     if state == "H" then return end
 
     local sym = tape[pos] or 0
     local d
-    tape[pos], d, state = table.unpack(
+    tape[pos], d, state = unpack(
         delta[sym][state]
     )
     pos = pos + ({ L = -1, R = 1 })[d]
-    window:setTimeout(step, 100)
+    window:setTimeout(function()
+        ctx = _ctx
+        step()
+    end, 100)
 end
 
 clear()

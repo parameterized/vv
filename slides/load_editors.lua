@@ -6,10 +6,6 @@ mouse = {
     held = { [0] = false, [1] = false, [2] = false },
 }
 
-local function is_none(v)
-    return v == nil or v == js.null or v == js.undefined
-end
-
 function mouse_held(button)
     if button == nil then
         for _, held in pairs(mouse.held) do
@@ -71,8 +67,8 @@ function set_locals(code_div)
     end
     ctx = code_div:querySelector("canvas"):getContext("2d")
     bounds = ctx.canvas:getBoundingClientRect()
-    mx = mouse.x - bounds.x
-    my = mouse.y - bounds.y
+    mx = (mouse.x - bounds.x) / scale
+    my = (mouse.y - bounds.y) / scale
     clear = function() _clear(ctx) end
 end
 
@@ -93,11 +89,13 @@ end
 function fix_line_numbers()
     local slides = document:querySelector(".slides")
     local _tf = slides.style.transform
+    local _sx, _sy = window.scrollX, window.scrollY
     slides.style.transform = "scale(1)"
     for _, pre in pairs(document:querySelectorAll(
         ".code-div pre.line-numbers"
     )) do window.Prism.plugins.lineNumbers:resize(pre) end
     slides.style.transform = _tf
+    window:scroll(_sx, _sy)
 end
 
 function load_editors()

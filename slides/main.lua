@@ -3,7 +3,21 @@ package.path = "./?.lua"
 require "util"
 require "load_editors"
 
-local scale = 1
+scale = 1
+local scroll_key = "vv_slides_scroll_y"
+
+local function save_scroll()
+    window.sessionStorage:setItem(
+        scroll_key, tostring(window.scrollY)
+    )
+end
+
+local function load_scroll()
+    local sy = window.sessionStorage:getItem(scroll_key)
+    if is_none(sy) then return nil end
+    return tonumber(sy)
+end
+
 function window:onresize()
     local new_scale = window.innerWidth / 1600
     local new_scroll = (
@@ -38,9 +52,13 @@ local function init()
 
     load_editors()
 
-    local _scroll = window.scrollY
     window:onresize()
-    window:scroll(0, _scroll)
+    local sy = load_scroll()
+    if sy then window:scroll(0, sy) end
+
+    window:addEventListener("scroll", save_scroll)
+    window:addEventListener("beforeunload", save_scroll)
+
     document.documentElement.classList:remove("hidden")
 end
 
@@ -82,7 +100,7 @@ function window:onkeydown(e)
     end
 end
 
-local function add_slide(o)
+function add_slide(o)
     local slides = document:querySelector(".slides")
     local slide = document:createElement("x-slide")
     slides:append(slide)
@@ -95,7 +113,7 @@ local function add_slide(o)
     slide:append(pre)
     pre.innerHTML = o.pre or ""
     pre.style.left = "100px"
-    pre.style.top = "180px"
+    pre.style.top = "160px"
 
     local function new_code_div(src)
         local code_div = document:createElement("div")
@@ -111,7 +129,7 @@ local function add_slide(o)
 
     local spacer = document:createElement("div")
     slide:append(spacer)
-    spacer.style.height = "400px"
+    spacer.style.height = "380px"
 
     if o.code_hidden then
         spacer.style.height = o.code and "60px" or "240px"
@@ -127,9 +145,13 @@ local function add_slide(o)
     if o.code then
         slide:append(new_code_div(o.code))
     end
+
+    if o.spacer then
+        spacer.style.height = o.spacer
+    end
 end
 
-local function read_file(path)
+function read_file(path)
     local xhr = js.new(window.XMLHttpRequest)
     xhr:open("GET", path, false)
     xhr:send()
@@ -143,26 +165,6 @@ local function read_file(path)
     return xhr.responseText
 end
 
-
-add_slide {
-    code_hidden = [[
-function draw_text(s, x, y)
-    ctx.font = "20px sans-serif"
-    ctx.textBaseline = "top"
-    ctx.fillStyle = "#ddd"
-    ctx:fillText(s, x, y)
-end
-    ]],
-}
-
-add_slide {
-    h1 = "code",
-    pre = [[
-code
-    ]],
-    code = read_file("demo_code/tm.lua"),
-}
-
-add_slide {}
+require "slides"
 
 init()
