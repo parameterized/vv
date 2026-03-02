@@ -15,6 +15,10 @@ function fri_lerp(a, b, t, dt)
     return lerp(a, b, alpha)
 end
 
+function dist(x1, y1, x2, y2)
+    return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+end
+
 function draw_text(s, x, y)
     ctx.font = "20px sans-serif"
     ctx.textBaseline = "top"

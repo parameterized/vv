@@ -1,5 +1,5 @@
 -- todo
 
-function loop()
+function loop(dt)
     clear()
 end
