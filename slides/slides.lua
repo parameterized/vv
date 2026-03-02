@@ -81,7 +81,7 @@ add_slide {
 }
 
 add_slide {
-    h1 = "interaction nets are cool",
+    h1 = "inets are cool",
     pre = [[
 rewrites happen in continuous space and time
 
@@ -165,7 +165,7 @@ of the rule's output subgraph.
 
 
 
-you could <a href="https://www.todepond.com/wikiblogarden/better-computing/just/">just</a> do the whole replacement at match-time but thats less cool
+or you could <a href="https://www.todepond.com/wikiblogarden/better-computing/just/">just</a> do the whole replacement at match-time but thats less cool
     ]],
 }
 

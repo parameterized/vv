@@ -125,6 +125,23 @@ function load_editors()
         end,
     })
 
+    -- default copy includes nbsp, copy from code_edit instead
+    local function override_copy(e)
+        local btn = e.target:closest(
+            "button.copy-to-clipboard-button"
+        )
+        if is_none(btn) then return end
+
+        e:preventDefault()
+        e:stopImmediatePropagation()
+        local code_edit = (
+            btn:closest(".code-div"):querySelector("textarea")
+        )
+        window.navigator.clipboard:writeText(code_edit.value)
+    end
+    document:addEventListener("click", function(_, e)
+        pcall(override_copy, e)
+    end, true)
 
     local title = document:querySelector("#title")
     local title_text = trim(title.innerHTML)
