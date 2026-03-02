@@ -37,3 +37,5 @@ function loop(dt)
 
     draw()
 end
+
+draw()

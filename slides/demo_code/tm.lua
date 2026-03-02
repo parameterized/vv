@@ -12,9 +12,9 @@ local delta = {
 }
 
 local tape, state, pos = {}, "A", 0
-local y = 20
+local config_hist = {}
 
-local function show()
+local function config_str()
     local s = ""
     for i = -2, 5 do
         s = s .. (
@@ -23,13 +23,20 @@ local function show()
         )
         if i < 5 then s = s .. " " end
     end
-    draw_text(s, 100, y)
-    y = y + 24
+    return s
+end
+table.insert(config_hist, config_str())
+
+local function draw()
+    clear()
+    local y = 20
+    for _, s in ipairs(config_hist) do
+        draw_text(s, 100, y)
+        y = y + 24
+    end
 end
 
-local _ctx = ctx
 local function step()
-    show()
     if state == "H" then return end
 
     local sym = tape[pos] or 0
@@ -38,11 +45,19 @@ local function step()
         delta[sym][state]
     )
     pos = pos + ({ L = -1, R = 1 })[d]
-    window:setTimeout(function()
-        ctx = _ctx
-        step()
-    end, 100)
+    table.insert(config_hist, config_str())
 end
 
-clear()
-step()
+local fps = 10
+local timer = 1 / fps
+
+function loop(dt)
+    timer = timer - dt
+    if timer < 0 then
+        step()
+        timer = math.max(timer + 1 / fps, 0)
+    end
+    draw()
+end
+
+draw()

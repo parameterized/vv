@@ -54,13 +54,14 @@ end
 
 local fps = 24
 local timer = 1 / fps
-draw()
 
 function loop(dt)
     timer = timer - dt
-    if timer > 0 then return end
-
-    timer = math.max(timer + 1 / fps, 0)
-    step()
+    if timer < 0 then
+        step()
+        timer = math.max(timer + 1 / fps, 0)
+    end
     draw()
 end
+
+draw()

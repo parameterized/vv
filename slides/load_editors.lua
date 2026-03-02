@@ -66,9 +66,9 @@ function set_locals(code_div)
         _clear(ctx)
     end
     ctx = code_div:querySelector("canvas"):getContext("2d")
-    bounds = ctx.canvas:getBoundingClientRect()
-    mx = (mouse.x - bounds.x) / scale
-    my = (mouse.y - bounds.y) / scale
+    local r = canvas:getBoundingClientRect()
+    mx = (mouse.x - r.x) * canvas.width / r.width
+    my = (mouse.y - r.y) * canvas.height / r.height
     clear = function() _clear(ctx) end
 end
 
@@ -76,6 +76,7 @@ function run_script(code_edit)
     local code_div = code_edit.parentNode
     local code_val = code_edit.value
     set_locals(code_div)
+    ---@diagnostic disable-next-line: assign-type-mismatch
     loop = nil
     ---@diagnostic disable-next-line: undefined-global
     local fn, load_err = load(code_val, "code-edit", "t", _ENV)
@@ -84,6 +85,91 @@ function run_script(code_edit)
     if not ran_ok then error(run_err) end
     code_div.loop = loop
     -- todo: display error next to code
+end
+
+local function draw_play()
+    local w, h = ctx.canvas.width, ctx.canvas.height
+    ctx:save()
+    ctx.fillStyle = "rgb(128 128 128 / 30%)"
+    ctx:fillRect(0, 0, w, h)
+
+    local cx, cy = w / 2, h / 2
+    local r = math.min(w, h) * 0.1
+    ctx:beginPath()
+    ctx.fillStyle = "rgb(255 255 255 / 90%)"
+    ctx:arc(cx, cy, r * 1.2, 0, math.pi * 2)
+    ctx:fill()
+
+    ctx:beginPath()
+    ctx.fillStyle = "#222"
+    ctx:moveTo(cx - r * 0.4, cy - r * 0.6)
+    ctx:lineTo(cx - r * 0.4, cy + r * 0.6)
+    ctx:lineTo(cx + r * 0.7, cy)
+    ctx:closePath()
+    ctx:fill()
+    ctx:restore()
+end
+
+local function pause_rect()
+    local size, pad = 40, 10
+    local x = ctx.canvas.width - size - pad
+    return x, pad, size, size
+end
+
+local function draw_pause(alpha)
+    local x, y, w, h = pause_rect()
+    ctx:save()
+    ctx.fillStyle = "rgb(0 0 0 / " .. 100 * alpha .. "%)"
+    ctx:fillRect(x, y, w, h)
+    ctx.fillStyle = "rgb(255 255 255 / " .. 100 * alpha .. "%)"
+    ctx:translate(x, y)
+    local bar_w, gap = 6, 6
+    local bx = (w - gap) / 2 - bar_w
+    local by, bh = 8, h - 16
+    ctx:fillRect(bx, by, bar_w, bh)
+    ctx:fillRect(bx + bar_w + gap, by, bar_w, bh)
+    ctx:restore()
+end
+
+local function is_hovered(elt)
+    local r = elt:getBoundingClientRect()
+    return (
+        mouse.x >= r.x and mouse.x <= r.x + r.width
+        and mouse.y >= r.y and mouse.y <= r.y + r.height
+    )
+end
+
+local function pause_hovered()
+    local rx, ry, rw, rh = pause_rect()
+    return mx >= rx and mx <= rx + rw and my >= ry and my <= ry + rh
+end
+
+local function pause_code(code_div)
+    code_div.paused = true
+    code_div.pause_alpha = 0
+    draw_play()
+end
+
+local function setup_play_pause(code_div)
+    set_locals(code_div)
+    pause_code(code_div)
+
+    local canvas = code_div:querySelector("canvas")
+    canvas:addEventListener("pointerdown", function(_, e)
+        if not e.isPrimary then return end
+
+        if code_div.paused then
+            code_div.paused = false
+            return
+        end
+
+        set_locals(code_div)
+        if pause_hovered() then
+            pause_code(code_div)
+            e:preventDefault()
+            e:stopPropagation()
+        end
+    end)
 end
 
 function fix_line_numbers()
@@ -102,10 +188,12 @@ function load_editors()
     window.Prism.plugins.toolbar:registerButton("run", js_obj {
         text = "run",
         onClick = function(_, env)
-            run_script(
+            local code_div = (
                 env.element.parentNode.parentNode.parentNode
-                :querySelector("textarea")
             )
+            local code_edit = code_div:querySelector("textarea")
+            code_div.paused = false
+            run_script(code_edit)
         end,
     })
     window.Prism.plugins.toolbar:registerButton("reset", js_obj {
@@ -118,10 +206,12 @@ function load_editors()
             code_edit.value = code_div.initial_code
             code_edit:oninput()
 
+            code_div.paused = false
             set_locals(code_div)
             clear()
             run_script(code_edit)
-            -- todo: let ctrl+z undo this
+
+            -- todo: let ctrl+z undo text reset
         end,
     })
 
@@ -186,6 +276,7 @@ function load_editors()
         end
 
         run_script(code_edit)
+        setup_play_pause(code_div)
 
         -- add editor events
 
@@ -252,9 +343,15 @@ function load_editors()
                 code_edit.selectionEnd = cursor_pos
                 code_edit:oninput()
             elseif event.key == "Enter" and event.ctrlKey then
+                code_div.paused = false
                 run_script(code_edit)
             end
         end
+    end
+
+    local function in_view(elt)
+        local r = elt:getBoundingClientRect()
+        return r.bottom > 0 and r.top < window.innerHeight
     end
 
     -- call each loop function
@@ -268,7 +365,29 @@ function load_editors()
         for i = 0, code_divs.length - 1 do
             local code_div = code_divs[i]
             set_locals(code_div)
-            if code_div.loop then code_div.loop(dt) end
+            local canvas = code_div:querySelector("canvas")
+            if not code_div.paused and not in_view(canvas) then
+                pause_code(code_div)
+            end
+
+            local canv_hovered = is_hovered(canvas)
+            if code_div.paused then
+                canvas.style.cursor = (
+                    canv_hovered and "pointer" or "default"
+                )
+            else
+                if code_div.loop then code_div.loop(dt) end
+
+                code_div.pause_alpha = fri_lerp(
+                    code_div.pause_alpha,
+                    canv_hovered and 1 or 0,
+                    0.1, dt
+                )
+                draw_pause(code_div.pause_alpha)
+                canvas.style.cursor = (
+                    pause_hovered() and "pointer" or "default"
+                )
+            end
         end
         window:requestAnimationFrame(big_loop)
     end
