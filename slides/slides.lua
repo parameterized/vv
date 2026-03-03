@@ -155,12 +155,12 @@ add_slide {
 If a rule output atom $\tb{a_o}$ is bonded to an atom $\tb{a}$, and $\tb{a}$ isn't bonded
 to either the rule input or output, then $\tb{a} \tg{-} \tb{a_o}$ is a $\tg{\textit{rewrite bond}}$.
 
-When a rule has active rewrite bonds, they should be contracted until
+When a rule has rewrite bonds, they should be contracted until
 all are short enough (chosen threshold).
 During this process, the matching process should be disabled.
 
-At the end of the rewrite process, creation and merge operations are applied,
-resulting in the matched pattern being replaced with the complement
+At the end of the rewrite process, creation, merge, and type change operations
+are applied, resulting in the matched pattern being replaced with the complement
 of the rule's output subgraph.
 
 

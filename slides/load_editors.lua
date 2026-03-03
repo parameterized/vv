@@ -157,6 +157,8 @@ local function setup_play_pause(code_div)
     local canvas = code_div:querySelector("canvas")
     canvas:addEventListener("pointerdown", function(_, e)
         if not e.isPrimary then return end
+        mouse.x = e.clientX
+        mouse.y = e.clientY
 
         if code_div.paused then
             code_div.paused = false

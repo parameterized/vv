@@ -6,22 +6,18 @@ for i = 1, res do
     for j = 1, res do
         grid[i][j] = {
             type = rng() < 0.2 and "sand" or "air",
-            color = {
-                r = rng(240, 250),
-                g = rng(140, 180),
-                b = rng(190, 210),
-            }
+            color = ("rgb(%f %f %f)"):format(
+                rng(240, 250),
+                rng(140, 180),
+                rng(190, 210)
+            ),
         }
     end
 end
 
 local function draw_cell(cell, i, j)
     if cell.type ~= "air" then
-        local c = cell.color
-        ctx.fillStyle = (
-            "rgb(" .. c.r .. " "
-            .. c.g .. " " .. c.b .. ")"
-        )
+        ctx.fillStyle = cell.color
         local s = 400 / res
         local x, y = (j - 1) * s, (i - 1) * s
         ctx:fillRect(x, y, s, s)
