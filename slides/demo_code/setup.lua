@@ -11,11 +11,20 @@ function lerp(a, b, t)
 end
 
 function fri_lerp(a, b, t, dt)
+    -- frame rate independent(ish) lerp
     local alpha = 1 - math.exp(-60 * t * dt)
     return lerp(a, b, alpha)
 end
 
 function dist(x1, y1, x2, y2)
+    if type(x1) == "table" then
+        y1 = y1 or {}
+        x2, y2 = y1.x, y1.y
+        x1, y1 = x1.x, x1.y
+    end
+    if x2 == nil then
+        x2, y2 = 0, 0
+    end
     return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
 end
 

@@ -113,7 +113,6 @@ clip their wings
 
 add_slide {
     h1 = "interaction machines",
-    pre = "(code in progress)",
     spacer = "300px",
     code = read_file("demo_code/im.lua"),
 }
@@ -152,7 +151,7 @@ If an input atom is also an output atom, it is treated as if it has an alignment
 add_slide {
     h1 = "math",
     pre = [[
-If a rule output atom $\tb{a_o}$ is bonded to an atom $\tb{a}$, and $\tb{a}$ isn't bonded
+If an output subgraph atom $\tb{a_o}$ is bonded to an atom $\tb{a}$, and $\tb{a}$ isn't bonded
 to either the rule input or output, then $\tb{a} \tg{-} \tb{a_o}$ is a $\tg{\textit{rewrite bond}}$.
 
 When a rule has rewrite bonds, they should be contracted until
